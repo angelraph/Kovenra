@@ -36,7 +36,7 @@ export default function NewEvent() {
       description: f.get("description"),
       venue: f.get("venue"),
       city: f.get("city"),
-      startsAt: `${date}T${time}:00+01:00`, // Lagos time
+      startsAt: `${date}T${time}:00+01:00`, // Nigeria time (WAT)
       priceNaira: String(f.get("price") ?? "").replace(/[,\s₦]/g, ""),
       capacity: Number(f.get("capacity")),
       perPersonLimit: Number(f.get("perPerson")),
