@@ -57,7 +57,16 @@ function settleDeps() {
 export function buildApi(defer: Defer) {
   const app = new Hono().basePath("/api");
 
-  app.get("/health", (c) => c.json({ ok: true, chainId: 42220 }));
+  app.get("/health", (c) =>
+    c.json({
+      ok: true,
+      chainId: 42220,
+      // Which storage is live: "postgres" once DATABASE_URL is set, otherwise a temporary file.
+      store: env.databaseUrl ? "postgres" : "temporary",
+      payments: Boolean(env.x402ApiKey),
+      settlement: Boolean(env.settlerKey),
+    }),
+  );
 
   app.get("/rate", async (c) => {
     const rate = await liveRate();
