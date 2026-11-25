@@ -7,6 +7,7 @@ import { getGateway } from "./payments";
 import { liveRate, priceFor, purchase } from "./purchase";
 import { getVerifier } from "./selfgate";
 import { liveChain, settlePending, settleTicket } from "./settle";
+import { chainPulse, liveStats } from "./stats";
 import { getStore, type EventRec, type TicketRec } from "./store";
 import { checkAdmin, hashKey, newAdminKey, newId, parseTicketCode, slugify, ticketCode } from "./tickets";
 
@@ -61,6 +62,17 @@ export function buildApi(defer: Defer) {
   app.get("/rate", async (c) => {
     const rate = await liveRate();
     return c.json({ ngnPerUsdt: rate, source: "Textile FX USDT_NGN" });
+  });
+
+  // Live numbers for the landing page. All real, nothing simulated.
+  app.get("/stats", async (c) => {
+    c.header("cache-control", "public, s-maxage=10, stale-while-revalidate=30");
+    return c.json(await liveStats());
+  });
+
+  app.get("/chain", async (c) => {
+    c.header("cache-control", "public, s-maxage=4, stale-while-revalidate=10");
+    return c.json(await chainPulse());
   });
 
   app.get("/events", async (c) => {

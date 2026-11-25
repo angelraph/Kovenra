@@ -371,7 +371,10 @@ export function getStore(): Store {
   if (!singleton) {
     singleton = env.databaseUrl
       ? new PgStore(env.databaseUrl)
-      : new MemoryStore(path.join(process.cwd(), ".data", "kovenra.json"));
+      : new MemoryStore(
+          // Vercel's file system is read-only except /tmp. Without a database, data there is temporary.
+          process.env.VERCEL ? path.join("/tmp", "kovenra.json") : path.join(process.cwd(), ".data", "kovenra.json"),
+        );
   }
   return singleton;
 }
