@@ -14,7 +14,7 @@ export const env = {
   /** Public base URL, e.g. https://kovenra.xyz */
   baseUrl: opt("PUBLIC_BASE_URL") ?? "http://localhost:3000",
   /** Attribution code issued at hackathon enrollment (ERC-8021). */
-  attributionCode: opt("ATTRIBUTION_CODE") ?? "celo_test1234",
+  attributionCode: opt("ATTRIBUTION_CODE") ?? "celo_09b3ddb9ca23",
   /** GitHub owner/repo, used to assert the attribution code matches the repo. */
   repoSlug: opt("REPO_SLUG"),
   /** Celo x402 facilitator metering key (created by a human on the dashboard). */
