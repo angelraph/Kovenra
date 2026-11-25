@@ -107,18 +107,18 @@ export default function NewEvent() {
         <div className="grid grid-2" style={{ marginTop: 16 }}>
           <div>
             <label htmlFor="venue">Venue</label>
-            <input id="venue" name="venue" required placeholder="The Vault, Lekki Phase 1" />
+            <input id="venue" name="venue" required placeholder="e.g. Civic Centre hall" />
           </div>
           <div>
             <label htmlFor="city">City</label>
-            <input id="city" name="city" defaultValue="Lagos" required />
+            <input id="city" name="city" required placeholder="e.g. Abuja, Ibadan, Port Harcourt" />
           </div>
           <div>
             <label htmlFor="date">Date</label>
             <input id="date" name="date" type="date" required />
           </div>
           <div>
-            <label htmlFor="time">Start time (Lagos)</label>
+            <label htmlFor="time">Start time (Nigeria time)</label>
             <input id="time" name="time" type="time" defaultValue="20:00" required />
           </div>
           <div>

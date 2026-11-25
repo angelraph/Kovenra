@@ -2,8 +2,8 @@
 
 Fair tickets for real people, paid in naira, on Celo.
 
-Lagos shows sell out weeks early, and many tickets end up resold on WhatsApp and X at
-three times the price. Kovenra gives every organizer a ticket counter that only sells to
+Popular shows across Nigeria sell out weeks early, and many tickets end up resold on
+WhatsApp and X at three times the price. Kovenra gives every organizer a ticket counter that only sells to
 real, unique people. Fans pay in dollars (USD₮) or naira (cNGN) from their phone, and the
 organizer receives naira in their own wallet seconds later.
 

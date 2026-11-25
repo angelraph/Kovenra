@@ -16,7 +16,7 @@ const CreateEvent = z.object({
   title: z.string().trim().min(3).max(80),
   description: z.string().trim().max(1200).default(""),
   venue: z.string().trim().min(2).max(120),
-  city: z.string().trim().min(2).max(60).default("Lagos"),
+  city: z.string().trim().min(2).max(60),
   startsAt: z.string().refine((s) => !Number.isNaN(Date.parse(s)), "invalid date"),
   priceNaira: z.string().regex(/^\d{1,9}(\.\d{1,2})?$/, "price in naira, e.g. 5000"),
   capacity: z.coerce.number().int().min(1).max(100_000),
