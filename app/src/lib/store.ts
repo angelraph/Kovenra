@@ -71,6 +71,8 @@ export interface TicketRec {
   resale?: { fromTicket: string; seller: string; sellerPaidTx?: string };
   resoldTo?: string;
   resoldAt?: string;
+  /** Set when the buyer paid with their wallet's Send button (see sendpay.ts). */
+  sendOrder?: string;
 }
 
 export interface Rejection {

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { Address } from "viem";
+import SendPay from "./SendPay";
 
 // Wallet, Self and x402 code is heavy; load it only when the fan taps "Get your ticket".
 const lib = () => import("@/lib/client/buyer");
@@ -21,7 +22,7 @@ interface Props {
   drop?: { phase: "entries" | "drawing" | "claim" | "open"; entryClosesAt: string; claimMinutes: number; drawAt: string | null; entries: number } | null;
 }
 
-type Step = "idle" | "verify" | "verifying" | "wallet" | "confirm" | "paying" | "done" | "entered";
+type Step = "send" | "idle" | "verify" | "verifying" | "wallet" | "confirm" | "paying" | "done" | "entered";
 
 const when = (iso: string) => new Date(iso).toLocaleString("en-NG", { weekday: "short", hour: "numeric", minute: "2-digit", day: "numeric", month: "short", timeZone: "Africa/Lagos" });
 
@@ -39,10 +40,12 @@ export default function BuyPanel(p: Props) {
   const [buyer, setBuyer] = useState<Address | null>(null);
   const [balance, setBalance] = useState<bigint | null>(null);
   const [mobile, setMobile] = useState(false);
+  const [hasWallet, setHasWallet] = useState(true);
 
   useEffect(() => {
     const eth = (window as unknown as { ethereum?: { isMiniPay?: boolean } }).ethereum;
     setMobile(/Android|iPhone|iPad/i.test(navigator.userAgent) || Boolean(eth?.isMiniPay));
+    setHasWallet(Boolean(eth));
     try {
       setVerified(Boolean(localStorage.getItem(AGENT_KEY)));
     } catch {
@@ -123,6 +126,7 @@ export default function BuyPanel(p: Props) {
 
   async function wallet() {
     setError(null);
+    if (!hasWallet && canSend) return setStep("send");
     setStep("wallet");
     try {
       const b = await lib();
@@ -168,6 +172,8 @@ export default function BuyPanel(p: Props) {
   }
 
   const resale = p.remaining <= 0 && (p.listed ?? 0) > 0;
+  // Paying with the wallet's Send button works for open events (no Self check, no draw, not a resale).
+  const canSend = !p.humansOnly && !p.drop && !resale;
   if (p.remaining <= 0 && !resale) {
     return (
       <div className="card">
@@ -210,8 +216,14 @@ export default function BuyPanel(p: Props) {
       )}
 
       {step === "idle" && (
-        <button className="btn btn-block" onClick={begin} disabled={!price || ph === "drawing"}>{idleLabel}</button>
+        <>
+          <button className="btn btn-block" onClick={begin} disabled={!price || ph === "drawing"}>{idleLabel}</button>
+          {canSend && hasWallet && price && (
+            <button className="btn btn-ghost btn-block" onClick={() => setStep("send")}>Pay from MiniPay by sending instead</button>
+          )}
+        </>
       )}
+      {step === "send" && <SendPay slug={p.slug} onCancel={() => setStep("idle")} />}
       {dropNote && <div className="notice notice-good">{dropNote}</div>}
       {step === "entered" && <p className="small faint">Come back to this page when entries close to see if you won.</p>}
 

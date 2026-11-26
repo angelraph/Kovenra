@@ -12,6 +12,7 @@ import { chainPulse, liveStats } from "./stats";
 import { countsAsSeat, getStore, type EventRec, type TicketRec } from "./store";
 import { drawResult, ensureDraw, entryHash, phase as dropPhase } from "./drop";
 import { fairnessReport } from "./report";
+import { checkSendOrder, createSendOrder } from "./sendpay";
 import { checkAdmin, hashKey, newAdminKey, newId, parseTicketCode, slugify, ticketCode } from "./tickets";
 
 export type Defer = (job: () => Promise<unknown>) => void;
@@ -290,6 +291,27 @@ export function buildApi(defer: Defer) {
     }
     for (const [k, v] of Object.entries(res.headers)) c.header(k, v);
     return c.json(res.body, res.status as 200);
+  });
+
+  // Pay by sending: for wallets that can't open web pages (MiniPay opens only listed apps).
+  app.post("/events/:slug/send-order", async (c) => {
+    const store = getStore();
+    const e = await store.getEventBySlug(c.req.param("slug"));
+    if (!e) return c.json({ error: "not_found" }, 404);
+    const { from } = (await c.req.json().catch(() => ({}))) as { from?: string };
+    const r = await createSendOrder(e, from ?? "", { store });
+    return c.json(r.body, r.status as 200);
+  });
+
+  app.post("/send-orders/check", async (c) => {
+    const store = getStore();
+    const { order } = (await c.req.json().catch(() => ({}))) as { order?: string };
+    const r = await checkSendOrder(order ?? "", { store });
+    if (r.toSettle) {
+      const t = r.toSettle;
+      defer(() => settleTicket(t, settleDeps()));
+    }
+    return c.json(r.body, r.status as 200);
   });
 
   app.get("/tickets/:id", async (c) => {

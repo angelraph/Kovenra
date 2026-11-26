@@ -13,6 +13,7 @@ import type { FirmQuote } from "./textile";
 import { usdtForNaira } from "./textile";
 import { hashKey, parseTicketCode, ticketCode } from "./tickets";
 import { entryHash, rank } from "./drop";
+import { checkSendOrder, createSendOrder } from "./sendpay";
 
 const SETTLER = getAddress("0x1111111111111111111111111111111111111111");
 const ORGANIZER = getAddress("0x2222222222222222222222222222222222222222");
@@ -378,5 +379,60 @@ describe("face-value resale", () => {
     expect(call.functionName).toBe("transfer");
     expect((call.args as [Address, bigint])[0]).toBe(SELLER);
     expect((call.args as [Address, bigint])[1]).toBe(BigInt(accepts[0].amount));
+  });
+});
+describe("pay by sending (MiniPay Send button)", () => {
+  const BUYER = getAddress("0x3333333333333333333333333333333333333333");
+  let store: MemoryStore;
+  let event: EventRec;
+  let sent: { tx: string; value: bigint }[];
+  const deps = () => ({ store, rate: async () => RATE, settler: SETTLER, blockNumber: async () => 1000n, transfers: async () => sent });
+
+  beforeEach(async () => {
+    store = new MemoryStore();
+    event = makeEvent({ humansOnly: false, minAge: 0, capacity: 2, perPersonLimit: 2 });
+    await store.createEvent(event);
+    sent = [];
+  });
+
+  it("holds a seat, waits for the transfer, then issues one ticket and queues the naira conversion", async () => {
+    const o = await createSendOrder(event, BUYER, deps());
+    expect(o.status).toBe(200);
+    const amount = BigInt(o.body.amount as string);
+    expect(amount % 10_000n).toBe(0n); // whole cents, easy to type in a wallet
+    expect(await store.seatsTaken(event.id, Date.now())).toBe(1);
+
+    const waiting = await checkSendOrder(o.body.order as string, deps());
+    expect(waiting.status).toBe(202);
+
+    sent = [{ tx: "0xsend1", value: amount }];
+    const paid = await checkSendOrder(o.body.order as string, deps());
+    expect(paid.status).toBe(200);
+    expect(paid.toSettle?.paidToken).toBe("USDT");
+    expect(parseTicketCode(ticketCode(paid.toSettle!.id))).toBe(paid.toSettle!.id);
+
+    // Polling again returns the same ticket, never a second one.
+    const again = await checkSendOrder(o.body.order as string, deps());
+    expect(again.toSettle).toBeUndefined();
+    expect((again.body.ticket as { id: string }).id).toBe(paid.toSettle!.id);
+    expect((await store.listTickets(event.id)).length).toBe(1);
+  });
+
+  it("never uses one transfer for two orders", async () => {
+    const a = await createSendOrder(event, BUYER, deps());
+    const b = await createSendOrder(event, BUYER, deps());
+    sent = [{ tx: "0xsend1", value: BigInt(a.body.amount as string) }];
+    expect((await checkSendOrder(a.body.order as string, deps())).status).toBe(200);
+    expect((await checkSendOrder(b.body.order as string, deps())).status).toBe(202);
+  });
+
+  it("ignores an underpayment and refuses tampered orders and verified-only events", async () => {
+    const o = await createSendOrder(event, BUYER, deps());
+    sent = [{ tx: "0xsmall", value: 100_000n }];
+    expect((await checkSendOrder(o.body.order as string, deps())).status).toBe(202);
+    expect((await checkSendOrder(String(o.body.order).replace(/.$/, "x"), deps())).status).toBe(400);
+    const vip = makeEvent({ id: "evt_2", slug: "vip" });
+    await store.createEvent(vip);
+    expect((await createSendOrder(vip, BUYER, deps())).status).toBe(400);
   });
 });
