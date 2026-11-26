@@ -2,7 +2,11 @@ import Link from "next/link";
 import AgentDemo from "@/components/home/AgentDemo";
 import PageHead from "@/components/PageHead";
 import { Reveal } from "@/components/motion";
+import { Arrow } from "@/components/icons";
+import { SELF_REGISTRY } from "@/lib/chain";
+import { env } from "@/lib/env";
 
+export const dynamic = "force-dynamic";
 export const metadata = { title: "For AI agents", description: "Let an AI agent buy a ticket for you. Kovenra serves agents with a verified human behind them and takes payment over x402." };
 
 export default function Agents() {
@@ -27,6 +31,30 @@ export default function Agents() {
         <Reveal y={30}><AgentDemo /></Reveal>
       </section>
 
+      <section className="section" style={{ paddingBottom: 0 }}>
+        <div className="wrap">
+          <Reveal>
+            <div className="hair hair-3">
+              <div>
+                <span className="eyebrow">Kovenra&apos;s own identity</span>
+                <div className="big-num" style={{ marginTop: 14 }}>{env.agentId ? `#${env.agentId}` : "Pending"}</div>
+                <p className="small faint" style={{ marginTop: 8 }}>ERC-8004 agent in the Self Agent ID registry on Celo mainnet{env.agentId ? "" : ". Registration is in progress"}.</p>
+              </div>
+              <div>
+                <span className="eyebrow">Registration document</span>
+                <p className="muted" style={{ marginTop: 14 }}>Name, services, skills, x402 payment options and registry entry, in the ERC-8004 format.</p>
+                <a className="cell-title" href="/.well-known/agent-registration.json">agent-registration.json <Arrow size={16} /></a>
+              </div>
+              <div>
+                <span className="eyebrow">Registry</span>
+                <p className="muted mono small" style={{ marginTop: 14, wordBreak: "break-all" }}>{SELF_REGISTRY}</p>
+                <a className="cell-title" href={env.agentAddress ? `https://celoscan.io/address/${env.agentAddress}` : `https://celoscan.io/address/${SELF_REGISTRY}`} target="_blank" rel="noreferrer">See it on Celoscan <Arrow size={16} /></a>
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
       <section className="section">
         <div className="wrap">
           <Reveal><h2 style={{ fontSize: "clamp(26px,3.4vw,38px)" }}>Endpoints</h2></Reveal>
@@ -37,7 +65,9 @@ POST /api/events/{slug}/buy      Self Agent ID signature + x402 payment
 GET  /api/tickets/{id}           read a ticket back
 GET  /api/proof                  every sale with its transactions
 GET  /api/rate                   live USD₮ → naira rate (Textile FX)
-GET  /api/stats                  live totals`}</pre>
+GET  /api/stats                  live totals
+GET  /.well-known/agent-registration.json   Kovenra's ERC-8004 document
+GET  /skill.md                   step-by-step guide for agents`}</pre>
           </Reveal>
           <Reveal delay={0.1}>
             <div className="row" style={{ marginTop: 22 }}>

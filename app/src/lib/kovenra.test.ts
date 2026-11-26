@@ -269,3 +269,24 @@ describe("attribution and tickets", () => {
     expect(usdtForNaira(toUnits("100", 6), "1443.84", 60)).toBe(1_000_000n);
   });
 });
+
+describe("agent identity", () => {
+  it("serves an ERC-8004 registration document with the services agents need", async () => {
+    const { kovenraAgentDocument } = await import("./agentCard");
+    const doc = kovenraAgentDocument("https://kovenra.xyz");
+    expect(doc.type).toBe("https://eips.ethereum.org/EIPS/eip-8004#registration-v1");
+    expect(doc.name).toBe("Kovenra");
+    const names = doc.services.map((s) => s.name);
+    expect(names).toEqual(expect.arrayContaining(["web", "agent-skill", "x402-buy"]));
+    expect(doc.services.every((s) => s.endpoint.startsWith("https://kovenra.xyz"))).toBe(true);
+    expect(doc.selfAgentId.requiresVerifiedHuman).toBe(true);
+  });
+
+  it("fills the site address into the skill file", async () => {
+    const { skillMarkdown } = await import("./skill");
+    const md = skillMarkdown("https://kovenra.xyz", 42);
+    expect(md).toContain("POST https://kovenra.xyz/api/events/{slug}/buy");
+    expect(md).toContain("agent #42");
+    expect(md).toContain("USD₮");
+  });
+});

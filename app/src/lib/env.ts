@@ -30,6 +30,10 @@ export const env = {
   selfMaxAgentsPerHuman: Number(opt("SELF_MAX_AGENTS_PER_HUMAN") ?? "10"),
   /** Extra USD₮ charged over the live mid rate so the conversion always covers the naira price. */
   fxBufferBps: Number(opt("FX_BUFFER_BPS") ?? "60"),
+  /** Kovenra's own agent ID in the Self Agent ID registry (an ERC-8004 registry). Public. */
+  agentId: opt("KOVENRA_AGENT_ID") ? Number(opt("KOVENRA_AGENT_ID")) : undefined,
+  /** Kovenra's agent address in that registry. Public. */
+  agentAddress: opt("KOVENRA_AGENT_ADDRESS"),
 };
 
 export function settlerAddressFromEnv(): Address | undefined {

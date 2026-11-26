@@ -42,4 +42,6 @@ next-env.d.ts
 
 # local data and allow the env template
 .data/
+# agent keys created by the scripts (private, never commit)
+.agent/
 !.env.example

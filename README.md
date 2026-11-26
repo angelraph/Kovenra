@@ -70,6 +70,40 @@ npm run dev
 
 Without a database it keeps data in a local file, which is fine for trying it out.
 
+## Kovenra's own identity
+
+Kovenra is an agent too. It has an ERC-8004 identity in the Self Agent ID registry on Celo
+(`0xaC3DF9ABf80d0F5c020C06B04Cced27763355944`), backed by a real person's passport scan.
+Its registration document lives at `/.well-known/agent-registration.json` and is also
+written on-chain to its registry entry.
+
+```
+npm run agent:register     # scan your passport in the Self app once; saves the key to app/.agent/
+npm run agent:card         # writes the ERC-8004 document on-chain (asks before sending)
+```
+
+## See the rules work
+
+The demo buyers script runs four buyers against the real ticket counter:
+
+1. A plain bot gets 403.
+2. A bot with a made-up key gets 403.
+3. A verified person's agent gets a price, or a real ticket with `--pay`.
+4. The same person's second agent gets 429.
+
+```
+npm run agent:register -- --name demo-1
+npm run agent:register -- --name demo-2      # same passport
+npm run demo:buyers -- --event <slug>        # add --pay to buy one real ticket
+```
+
+Every refusal shows up on the live board and in the organizer's dashboard.
+
+## Payout retries
+
+If a naira conversion ever fails, a Vercel cron job (`app/vercel.json`) retries it every
+five minutes until it lands. It uses `CRON_SECRET`.
+
 ## Cashing out
 
 cNGN is the official naira stablecoin on Celo. Organizers can hold it, spend it, or cash it out to any Nigerian bank through the cNGN app, Busha or Quidax.
