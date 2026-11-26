@@ -1,0 +1,147 @@
+1
+00:00:05,910 --> 00:00:07,905
+You know how it goes.
+
+2
+00:00:07,955 --> 00:00:13,150
+A big show is announced, the link goes live, and minutes later it's sold out.
+
+3
+00:00:13,200 --> 00:00:18,615
+By evening, the same tickets are on WhatsApp and X for three times the price.
+
+4
+00:00:18,665 --> 00:00:20,650
+Bots and touts win.
+
+5
+00:00:20,700 --> 00:00:23,260
+Real fans lose.
+
+6
+00:00:23,110 --> 00:00:26,440
+Kovenra sells one ticket per verified person.
+
+7
+00:00:26,490 --> 00:00:28,059
+Here's a drop.
+
+8
+00:00:28,109 --> 00:00:30,325
+A fan asks for a ticket.
+
+9
+00:00:30,375 --> 00:00:35,656
+Self confirms they're a real, unique person, without showing their passport.
+
+10
+00:00:35,706 --> 00:00:41,747
+They pay in dollars or naira over x402, and the ticket lands on their phone.
+
+11
+00:00:41,610 --> 00:00:44,009
+Everything on this board is live.
+
+12
+00:00:44,059 --> 00:00:47,526
+The naira rate comes straight from Textile FX.
+
+13
+00:00:47,576 --> 00:00:50,418
+The Celo block ticks by every second.
+
+14
+00:00:50,468 --> 00:00:56,220
+And these are Kovenra's own totals, including every bot it has turned away.
+
+15
+00:00:56,070 --> 00:01:01,128
+One person, one ticket, counted per human, not per account.
+
+16
+00:01:01,178 --> 00:01:04,315
+Naira lands with the organizer in seconds.
+
+17
+00:01:04,365 --> 00:01:06,986
+Each QR works once at the door.
+
+18
+00:01:07,036 --> 00:01:10,148
+Bots are refused before any money moves.
+
+19
+00:01:10,198 --> 00:01:14,550
+And verified AI agents can buy for the person behind them.
+
+20
+00:01:14,400 --> 00:01:19,507
+For shows that would sell out in seconds, organizers can run a Fair Drop.
+
+21
+00:01:19,557 --> 00:01:24,544
+Instead of a race the fastest bot wins, verified people enter a draw.
+
+22
+00:01:24,594 --> 00:01:29,510
+One entry each, however many phones or agents they use.
+
+23
+00:01:29,360 --> 00:01:34,026
+When entries close, the hash of the next Celo block picks the winners.
+
+24
+00:01:34,076 --> 00:01:39,467
+Nobody can know it in advance, not even us, and anyone can check it.
+
+25
+00:01:39,517 --> 00:01:47,201
+Every event gets a public fairness report: real people served, bots turned away, and every transaction.
+
+26
+00:01:47,060 --> 00:01:48,662
+Can't make it?
+
+27
+00:01:48,712 --> 00:01:50,624
+Hand your ticket back.
+
+28
+00:01:50,674 --> 00:01:58,540
+The next verified fan buys it at the original price, your old QR stops working, and your money comes back automatically.
+
+29
+00:01:58,590 --> 00:02:04,340
+A Kovenra ticket can never sell above face value, so touts have nothing to gain.
+
+30
+00:02:04,190 --> 00:02:07,153
+For organizers, it takes a minute.
+
+31
+00:02:07,203 --> 00:02:11,099
+Set a naira price, the seats, and the rules.
+
+32
+00:02:11,149 --> 00:02:18,452
+Watch sales, naira received, and blocked bots live, and scan tickets at the door with your phone.
+
+33
+00:02:18,320 --> 00:02:19,972
+Listing is free.
+
+34
+00:02:20,022 --> 00:02:25,817
+Fill one short form, switch on verified humans or a Fair Drop, and share your link.
+
+35
+00:02:25,867 --> 00:02:30,930
+Fans pay in dollars or naira, and you always receive naira.
+
+36
+00:02:30,780 --> 00:02:39,110
+Kovenra is an agent itself, registered on ERC-8004 as agent ten thousand one hundred and thirty-seven on Celo mainnet.
+
+37
+00:02:39,160 --> 00:02:46,630
+Any agent with a Self Agent ID can find events, pay the 402, and bring its human a ticket.

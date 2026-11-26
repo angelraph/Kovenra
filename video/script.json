@@ -1,0 +1,100 @@
+{
+  "voice": "en-NG-EzinneNeural",
+  "rate": "+2%",
+  "scenes": [
+    {
+      "id": "01-intro",
+      "kind": "card",
+      "card": "intro",
+      "label": "",
+      "say": "This is Kovenra. Fair tickets for real people, paid in naira."
+    },
+    {
+      "id": "02-problem",
+      "kind": "page",
+      "path": "/",
+      "label": "The problem",
+      "say": "You know how it goes. A big show is announced, the link goes live, and minutes later it's sold out. By evening, the same tickets are on WhatsApp and X for three times the price. Bots and touts win. Real fans lose.",
+      "actions": [["wait", 1.5], ["scrollTo", ".twotone", 3.5], ["wait", 3.5], ["scrollTo", ".story", 3], ["scroll", 260, 3], ["wait", 2]]
+    },
+    {
+      "id": "03-hero",
+      "kind": "page",
+      "path": "/",
+      "label": "One ticket per real person",
+      "say": "Kovenra sells one ticket per verified person. Here's a drop. A fan asks for a ticket. Self confirms they're a real, unique person, without showing their passport. They pay in dollars or naira over x402, and the ticket lands on their phone.",
+      "actions": [["scrollTo", "stage", 2.2], ["wait", 13], ["click", "[aria-label='Next slide']"], ["wait", 4]]
+    },
+    {
+      "id": "04-live",
+      "kind": "page",
+      "path": "/",
+      "label": "Live on Celo mainnet",
+      "say": "Everything on this board is live. The naira rate comes straight from Textile FX. The Celo block ticks by every second. And these are Kovenra's own totals, including every bot it has turned away.",
+      "actions": [["scrollTo", ".hair", 2.5], ["wait", 5], ["scroll", 420, 3], ["wait", 5]]
+    },
+    {
+      "id": "05-fair",
+      "kind": "page",
+      "path": "/",
+      "label": "Why it's fair",
+      "say": "One person, one ticket, counted per human, not per account. Naira lands with the organizer in seconds. Each QR works once at the door. Bots are refused before any money moves. And verified AI agents can buy for the person behind them.",
+      "actions": [["scroll", 200, 0.1], ["scrollTo", ".bento", 2.5], ["wait", 7], ["scroll", 300, 3], ["wait", 5]]
+    },
+    {
+      "id": "06-event",
+      "kind": "page",
+      "path": "/e/{drop}",
+      "label": "Fair Drop",
+      "say": "For shows that would sell out in seconds, organizers can run a Fair Drop. Instead of a race the fastest bot wins, verified people enter a draw. One entry each, however many phones or agents they use.",
+      "actions": [["wait", 1.5], ["scroll", 380, 3], ["wait", 4], ["hover", ".btn-block"], ["wait", 4]]
+    },
+    {
+      "id": "07-report",
+      "kind": "page",
+      "path": "/e/{drop}/fair",
+      "label": "Public fairness report",
+      "say": "When entries close, the hash of the next Celo block picks the winners. Nobody can know it in advance, not even us, and anyone can check it. Every event gets a public fairness report: real people served, bots turned away, and every transaction.",
+      "actions": [["wait", 1.5], ["scroll", 520, 3.5], ["wait", 4], ["scroll", 520, 3.5], ["wait", 4]]
+    },
+    {
+      "id": "08-resale",
+      "kind": "page",
+      "path": "/how-it-works#fair-drop",
+      "label": "Resale only at face value",
+      "say": "Can't make it? Hand your ticket back. The next verified fan buys it at the original price, your old QR stops working, and your money comes back automatically. A Kovenra ticket can never sell above face value, so touts have nothing to gain.",
+      "actions": [["wait", 0.8], ["scrollTo", "#fair-drop", 2.5], ["wait", 6], ["hover", "#fair-drop .hair > *:nth-child(3)"], ["wait", 5]]
+    },
+    {
+      "id": "09-organizer",
+      "kind": "page",
+      "path": "/organizers",
+      "label": "For organizers",
+      "say": "For organizers, it takes a minute. Set a naira price, the seats, and the rules. Watch sales, naira received, and blocked bots live, and scan tickets at the door with your phone.",
+      "actions": [["wait", 1.5], ["scroll", 620, 3.5], ["wait", 6], ["scroll", 700, 3.5], ["wait", 3]]
+    },
+    {
+      "id": "10-create",
+      "kind": "page",
+      "path": "/new?title=Freshers%20Night%20at%20UNN",
+      "label": "List an event",
+      "say": "Listing is free. Fill one short form, switch on verified humans or a Fair Drop, and share your link. Fans pay in dollars or naira, and you always receive naira.",
+      "actions": [["wait", 1.5], ["type", "#venue", "Princess Alexandra Auditorium"], ["type", "#city", "Nsukka"], ["type", "#price", "3000"], ["type", "#capacity", "800"], ["scroll", 520, 3], ["wait", 4]]
+    },
+    {
+      "id": "11-agents",
+      "kind": "page",
+      "path": "/agents",
+      "label": "Built for AI agents",
+      "say": "Kovenra is an agent itself, registered on ERC-8004 as agent ten thousand one hundred and thirty-seven on Celo mainnet. Any agent with a Self Agent ID can find events, pay the 402, and bring its human a ticket.",
+      "actions": [["wait", 1.5], ["scroll", 560, 3.5], ["wait", 5], ["scroll", 600, 3.5], ["wait", 4]]
+    },
+    {
+      "id": "12-outro",
+      "kind": "card",
+      "card": "outro",
+      "label": "",
+      "say": "Kovenra. One person, one fair seat. List your event today at kovenra dot x y z."
+    }
+  ]
+}

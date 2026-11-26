@@ -4,6 +4,8 @@ Fair tickets for real people, paid in naira, on Celo.
 
 Kovenra (from "covenant", a promise) is a ticket counter that only sells to real, unique people. One person, one fair seat.
 
+**Live:** [kovenra.xyz](https://kovenra.xyz) · **Demo video (3 min):** [video/kovenra-demo.mp4](video/kovenra-demo.mp4) · [transcript](video/TRANSCRIPT.md)
+
 ## The problem
 
 You know how it goes. A big show is announced in Abuja, Port Harcourt or Lagos, the link goes live, and a few minutes later it's sold out. By that evening the same tickets are on WhatsApp and X for two or three times the price.
