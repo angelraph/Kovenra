@@ -228,8 +228,8 @@ export default function BuyPanel(p: Props) {
       {step === "idle" && (
         <>
           <button className="btn btn-block" onClick={begin} disabled={!price || ph === "drawing"}>{idleLabel}</button>
-          {canSend && hasWallet && price && (
-            <button className="btn btn-ghost btn-block" onClick={() => setStep("send")}>Pay from MiniPay by sending instead</button>
+          {canSend && price && !step.startsWith("send") && (
+            <button className="btn btn-ghost btn-block" onClick={() => setStep("send")}>Pay by sending from another wallet</button>
           )}
         </>
       )}

@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 /**
  * Pay by sending: the buyer pastes the wallet they'll pay from, sends USD₮ with
  * their wallet's normal Send button, and this page turns into their ticket.
- * Works with MiniPay without opening Kovenra inside it.
+ * For wallets that can't open web pages.
  */
 interface Order {
   order: string;
@@ -103,9 +103,9 @@ export default function SendPay({ slug, onCancel }: { slug: string; onCancel: ()
     return (
       <div className="stack">
         <div className="notice">
-          <b>Pay from MiniPay or any wallet</b>
+          <b>Pay from Valora, MetaMask or another Celo wallet</b>
           <p className="muted small" style={{ marginTop: 4 }}>
-            First, paste the wallet address you&apos;ll pay from. In MiniPay, tap <b>Receive</b> and copy your address.
+            First, paste the wallet address you&apos;ll pay from. It starts with 0x. Don&apos;t pay from an exchange, because we can&apos;t tell the payment is yours.
           </p>
         </div>
         <input
@@ -131,9 +131,9 @@ export default function SendPay({ slug, onCancel }: { slug: string; onCancel: ()
       <div className="notice">
         <b>Send exactly {order.amountLabel} USD₮</b>
         <ol className="small muted" style={{ margin: "8px 0 0 18px", lineHeight: 1.7 }}>
-          <li>Open MiniPay and tap <b>Send</b>.</li>
+          <li>Open your wallet and tap <b>Send</b>.</li>
           <li>Paste the address below (or scan the QR).</li>
-          <li>Type <b>{order.amountLabel}</b>, choose <b>USD₮</b>, and send.</li>
+          <li>Type <b>{order.amountLabel}</b>, choose <b>USD₮ on Celo</b>, and send.</li>
           <li>Come back here. Your ticket appears on its own.</li>
         </ol>
       </div>
