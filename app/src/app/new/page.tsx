@@ -29,6 +29,10 @@ export default function NewEvent() {
   const [date, setDate] = useState("");
   const [time, setTime] = useState("20:00");
   const [copied, setCopied] = useState<string | null>(null);
+  const [fairDrop, setFairDrop] = useState(false);
+  const [closeDate, setCloseDate] = useState("");
+  const [closeTime, setCloseTime] = useState("12:00");
+  const [claimMinutes, setClaimMinutes] = useState("60");
 
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get("title");
@@ -55,9 +59,12 @@ export default function NewEvent() {
       startsAt: `${date}T${time || "20:00"}:00+01:00`, // Nigeria time (WAT)
       priceNaira: price.replace(/[,\s₦]/g, ""),
       capacity: Number(capacity),
-      perPersonLimit: Number(perPerson),
+      perPersonLimit: fairDrop ? 1 : Number(perPerson),
       minAge: adult ? 18 : 0,
-      humansOnly,
+      humansOnly: fairDrop ? true : humansOnly,
+      mode: fairDrop ? "fair-drop" : "first-come",
+      entryClosesAt: fairDrop ? `${closeDate}T${closeTime || "12:00"}:00+01:00` : undefined,
+      claimMinutes: Number(claimMinutes),
       organizerName: f.get("organizer"),
       payoutAddress: String(f.get("payout") ?? "").trim(),
     };
@@ -191,6 +198,25 @@ export default function NewEvent() {
                 <span><b style={{ color: "var(--text)" }}>Verified humans only</b> <span className="muted">(recommended)</span><br />
                   <span className="small muted">Each buyer proves they&apos;re a real, unique person with Self. Bots and duplicate accounts are turned away, and the per-person limit holds across all of a buyer&apos;s accounts and agents.</span></span>
               </label>
+            </div>
+            <div className="field">
+              <label className="toggle" style={fairDrop ? { borderColor: "rgba(253,177,41,0.5)" } : undefined}>
+                <input type="checkbox" checked={fairDrop} onChange={(e) => { setFairDrop(e.target.checked); if (e.target.checked) setHumansOnly(true); }} />
+                <span><b style={{ color: "var(--text)" }}>Fair drop</b> <span className="pill pill-gold" style={{ marginLeft: 6 }}>For shows that sell out fast</span><br />
+                  <span className="small muted">Instead of a fastest-finger race, verified people enter a draw (one entry each). When entries close, a Celo block picks the winners in a way anyone can check. Winners get time to pay; then leftover seats open to everyone who entered. One ticket per person.</span></span>
+              </label>
+              {fairDrop && (
+                <div className="grid grid-2" style={{ marginTop: 12 }}>
+                  <div><label htmlFor="cd">Entries close (date)</label><input id="cd" type="date" required value={closeDate} onChange={(e) => setCloseDate(e.target.value)} /></div>
+                  <div><label htmlFor="ct">Entries close (time, Nigeria)</label><input id="ct" type="time" required value={closeTime} onChange={(e) => setCloseTime(e.target.value)} /></div>
+                  <div>
+                    <label htmlFor="cm">Winners have this long to pay</label>
+                    <select id="cm" value={claimMinutes} onChange={(e) => setClaimMinutes(e.target.value)}>
+                      <option value="30">30 minutes</option><option value="60">1 hour</option><option value="180">3 hours</option><option value="720">12 hours</option><option value="1440">24 hours</option>
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="field">
               <label className="toggle">

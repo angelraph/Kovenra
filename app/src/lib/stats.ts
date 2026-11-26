@@ -2,7 +2,7 @@ import { createPublicClient, formatGwei, http } from "viem";
 import { celo } from "viem/chains";
 import { formatNaira } from "./chain";
 import { env } from "./env";
-import { getStore } from "./store";
+import { countsAsSeat, getStore } from "./store";
 
 /** Live, real numbers only. Nothing here is simulated. */
 export type LiveStats = {
@@ -14,7 +14,7 @@ export type LiveStats = {
   ngnPaid: string;
   ngnPaidLabel: string;
   cities: number;
-  recent: { kind: "sale" | "blocked"; event: string; city: string; at: string; reason?: string }[];
+  recent: { kind: "sale" | "resale" | "blocked"; event: string; city: string; at: string; reason?: string }[];
   at: string;
 };
 
@@ -31,13 +31,14 @@ export async function liveStats(): Promise<LiveStats> {
   let ngn = 0n;
   const recent: LiveStats["recent"] = [];
   for (const e of events) {
-    const [tickets, rejections] = await Promise.all([store.listTickets(e.id), store.rejections(e.id)]);
+    const [all, rejections] = await Promise.all([store.listTickets(e.id), store.rejections(e.id)]);
+    const tickets = all.filter(countsAsSeat);
     ticketsSold += tickets.length;
     checkedIn += tickets.filter((t) => t.status === "used").length;
     botsBlocked += rejections.length;
     for (const t of tickets) {
-      ngn += BigInt(t.ngnDelivered ?? (t.paidToken === "CNGN" ? t.paidAmount : "0"));
-      recent.push({ kind: "sale", event: e.title, city: e.city, at: t.createdAt });
+      if (!t.resale) ngn += BigInt(t.ngnDelivered ?? (t.paidToken === "CNGN" ? t.paidAmount : "0"));
+      recent.push({ kind: t.resale ? "resale" : "sale", event: e.title, city: e.city, at: t.createdAt });
     }
     for (const r of rejections) recent.push({ kind: "blocked", event: e.title, city: e.city, at: r.at, reason: r.reason });
   }

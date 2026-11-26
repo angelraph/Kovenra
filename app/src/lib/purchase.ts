@@ -5,6 +5,7 @@ import { env, settlerAddressFromEnv } from "./env";
 import { encodeRequired, encodeResponse, matchRequirement, readPaymentHeader, type PaymentGateway } from "./payments";
 import type { HumanVerifier } from "./selfgate";
 import type { EventRec, Store, TicketRec } from "./store";
+import { dropCheck } from "./drop";
 import { getUsdtNgn, usdtForNaira } from "./textile";
 import { holdKeyFor, newId, ticketCode } from "./tickets";
 
@@ -115,25 +116,36 @@ export async function purchase(event: EventRec, req: PurchaseRequest, deps: Purc
     agentId = gate.agentId;
   }
 
+  // 1b. Fair drop: only drawn winners (then any entrant) may buy.
+  if (event.mode === "fair-drop" && event.drop) {
+    const d = await dropCheck(event, nullifier, store, now);
+    if (!d.ok) return json(d.status, d.body);
+  }
+
   // 2. One person, N tickets: hold a seat counted against this human, across all their agents.
+  const limitMessage = `Limit reached: ${event.perPersonLimit} ticket${event.perPersonLimit > 1 ? "s" : ""} per person. Your other agents share this limit.`;
   const holdKey = holdKeyFor(event.id, nullifier, agentAddress);
   const held = await store.hold(event.id, nullifier, holdKey, now, { capacity: event.capacity, perPerson: event.perPersonLimit });
+  let listing: TicketRec | null = null;
   if (!held) {
     const seats = await store.seatsTaken(event.id, now);
-    if (seats >= event.capacity) return json(409, { error: "sold_out", message: "Sold out." });
-    await store.logRejection({ eventId: event.id, reason: "per_person_limit", agent: agentAddress, at: new Date(now).toISOString() });
-    return json(429, {
-      error: "per_person_limit",
-      message: `Limit reached: ${event.perPersonLimit} ticket${event.perPersonLimit > 1 ? "s" : ""} per person. Your other agents share this limit.`,
-    });
+    const mine = nullifier !== "0" ? await store.humanCount(event.id, nullifier, now) : 0;
+    if (seats < event.capacity || mine >= event.perPersonLimit) {
+      await store.logRejection({ eventId: event.id, reason: "per_person_limit", agent: agentAddress, at: new Date(now).toISOString() });
+      return json(429, { error: "per_person_limit", message: limitMessage });
+    }
+    // Sold out: a ticket handed back by its owner can be bought at face value, never above.
+    listing = await store.claimListing(event.id, holdKey, now);
+    if (!listing) return json(409, { error: "sold_out", message: "Sold out. Tickets handed back by their owners reappear here at face value." });
   }
 
   // 3. Price in naira, payable in USD₮ (converted for the organizer) or cNGN (straight to them).
+  //    Resale: both options pay Kovenra's wallet, which pays the seller face value.
   const settler = deps.settler ?? settlerAddressFromEnv();
   if (!settler) return json(503, { error: "not_configured", message: "Ticket sales are not switched on yet." });
   const price = await priceFor(event, await (deps.rate ?? liveRate)());
-  const offered = await deps.gateway.requirements({ settler, organizer: getAddress(event.payoutAddress), price });
-  const description = `1 ticket: ${event.title}`;
+  const offered = await deps.gateway.requirements({ settler, organizer: listing ? settler : getAddress(event.payoutAddress), price });
+  const description = listing ? `1 ticket (face-value resale): ${event.title}` : `1 ticket: ${event.title}`;
 
   const payload = readPaymentHeader(req.header);
   if (!payload) {
@@ -168,10 +180,12 @@ export async function purchase(event: EventRec, req: PurchaseRequest, deps: Purc
     paymentTx: settled.transaction,
     status: "valid",
     createdAt: new Date(now).toISOString(),
-    settleStatus: paidToken === "CNGN" ? "direct" : "pending",
-    ngnDelivered: paidToken === "CNGN" ? paidReq.amount : undefined,
+    settleStatus: listing ? "pending" : paidToken === "CNGN" ? "direct" : "pending",
+    ngnDelivered: !listing && paidToken === "CNGN" ? paidReq.amount : undefined,
+    resale: listing ? { fromTicket: listing.id, seller: listing.listing!.seller } : undefined,
   };
-  await store.addTicket(ticket, holdKey);
+  if (listing) await store.completeResale(listing.id, ticket, holdKey);
+  else await store.addTicket(ticket, holdKey);
 
   return {
     status: 200,
@@ -183,8 +197,9 @@ export async function purchase(event: EventRec, req: PurchaseRequest, deps: Purc
         url: `${env.baseUrl}/t/${ticket.id}`,
         event: { title: event.title, startsAt: event.startsAt, venue: event.venue, city: event.city },
         paid: { token: paidToken, amount: paidReq.amount, tx: settled.transaction },
+        resale: Boolean(listing),
       },
     },
-    toSettle: paidToken === "USDT" ? ticket : undefined,
+    toSettle: listing || paidToken === "USDT" ? ticket : undefined,
   };
 }

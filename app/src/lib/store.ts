@@ -20,6 +20,29 @@ export interface EventRec {
   payoutAddress: string;
   adminKeyHash: string;
   createdAt: string;
+  /** "first-come" (default) or "fair-drop" (verified people enter, a Celo block hash draws the order). */
+  mode?: "first-come" | "fair-drop";
+  drop?: DropInfo;
+}
+
+export interface DropInfo {
+  /** Entries close at this time (ISO). */
+  entryClosesAt: string;
+  /** How long winners have to pay, in minutes, before remaining seats open to every entrant. */
+  claimMinutes: number;
+  /** The draw: the first Celo block at or after entryClosesAt + 60s. */
+  drawBlock?: string;
+  drawSeed?: string; // that block's hash
+  drawAt?: string; // that block's timestamp (ISO); the claim window starts here
+}
+
+export interface Entry {
+  eventId: string;
+  nullifier: string;
+  /** Public id for the entry: keccak256("kovenra:<eventId>:<nullifier>"). Lets anyone check the draw without exposing the Self nullifier. */
+  entryHash: string;
+  agent: string;
+  at: string;
 }
 
 export type SettleStatus = "pending" | "converting" | "paid" | "direct" | "failed";
@@ -33,7 +56,8 @@ export interface TicketRec {
   paidToken: "USDT" | "CNGN";
   paidAmount: string; // base units
   paymentTx: string;
-  status: "valid" | "used";
+  /** listed = handed back for face-value resale (still counts as a seat); resold = replaced by a new ticket, QR dead. */
+  status: "valid" | "used" | "listed" | "resold";
   createdAt: string;
   checkedInAt?: string;
   settleStatus: SettleStatus;
@@ -41,6 +65,12 @@ export interface TicketRec {
   payoutTx?: string;
   ngnDelivered?: string;
   settleError?: string;
+  /** Set while the ticket is listed for resale. */
+  listing?: { seller: string; at: string; holdKey?: string; holdUntil?: number };
+  /** Set on a ticket bought through resale: the seller is paid face value from Kovenra's wallet. */
+  resale?: { fromTicket: string; seller: string; sellerPaidTx?: string };
+  resoldTo?: string;
+  resoldAt?: string;
 }
 
 export interface Rejection {
@@ -73,7 +103,18 @@ export interface Store {
   logRejection(r: Rejection): Promise<void>;
   rejections(eventId: string): Promise<Rejection[]>;
   allTickets(limit?: number): Promise<TicketRec[]>;
+  updateEvent(id: string, patch: Partial<EventRec>): Promise<void>;
+  /** Fair drop: one entry per human. Returns false if this human already entered. */
+  addEntry(e: Entry): Promise<boolean>;
+  listEntries(eventId: string): Promise<Entry[]>;
+  /** Resale: reserve the oldest listed ticket for this buyer's hold (or the one it already holds). */
+  claimListing(eventId: string, holdKey: string, now: number): Promise<TicketRec | null>;
+  /** Resale: retire the old ticket and write the buyer's new one, atomically. */
+  completeResale(oldId: string, t: TicketRec, holdKey: string): Promise<void>;
 }
+
+/** Seats count every ticket except ones replaced through resale. */
+export const countsAsSeat = (t: TicketRec) => t.status !== "resold";
 
 export const HOLD_MS = 5 * 60 * 1000;
 
@@ -89,15 +130,66 @@ interface MemData {
   tickets: TicketRec[];
   holds: Hold[];
   rejections: Rejection[];
+  entries: Entry[];
 }
 
 /** In-memory store, optionally persisted to a JSON file for local development. */
 export class MemoryStore implements Store {
-  private d: MemData = { events: [], tickets: [], holds: [], rejections: [] };
+  private d: MemData = { events: [], tickets: [], holds: [], rejections: [], entries: [] };
   private queue: Promise<unknown> = Promise.resolve();
 
   constructor(private file?: string) {
-    if (file && fs.existsSync(file)) this.d = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (file && fs.existsSync(file)) this.d = { ...this.d, ...JSON.parse(fs.readFileSync(file, "utf8")) };
+  }
+
+  private seats(eventId: string) {
+    return this.d.tickets.filter((t) => t.eventId === eventId && countsAsSeat(t));
+  }
+
+  async updateEvent(id: string, patch: Partial<EventRec>) {
+    await this.lock(() => {
+      const e = this.d.events.find((x) => x.id === id);
+      if (e) Object.assign(e, patch);
+      this.save();
+    });
+  }
+  async addEntry(e: Entry) {
+    return this.lock(() => {
+      if (this.d.entries.some((x) => x.eventId === e.eventId && x.nullifier === e.nullifier)) return false;
+      this.d.entries.push(e);
+      this.save();
+      return true;
+    });
+  }
+  async listEntries(eventId: string) {
+    return this.d.entries.filter((e) => e.eventId === eventId);
+  }
+  async claimListing(eventId: string, holdKey: string, now: number) {
+    return this.lock(() => {
+      const listed = this.d.tickets
+        .filter((t) => t.eventId === eventId && t.status === "listed" && t.listing)
+        .sort((a, b) => a.listing!.at.localeCompare(b.listing!.at));
+      const mine = listed.find((t) => t.listing!.holdKey === holdKey && (t.listing!.holdUntil ?? 0) > now);
+      const pick = mine ?? listed.find((t) => !t.listing!.holdUntil || t.listing!.holdUntil <= now);
+      if (!pick) return null;
+      pick.listing = { ...pick.listing!, holdKey, holdUntil: now + HOLD_MS };
+      this.save();
+      return { ...pick };
+    });
+  }
+  async completeResale(oldId: string, t: TicketRec, holdKey: string) {
+    await this.lock(() => {
+      const old = this.d.tickets.find((x) => x.id === oldId);
+      if (!old || old.status !== "listed") throw new Error("listing_gone");
+      if (this.d.tickets.some((x) => x.paymentTx === t.paymentTx && t.paymentTx)) throw new Error("duplicate_payment");
+      old.status = "resold";
+      old.resoldTo = t.id;
+      old.resoldAt = t.createdAt;
+      old.listing = { ...old.listing!, holdKey: undefined, holdUntil: undefined };
+      this.d.holds = this.d.holds.filter((h) => h.key !== holdKey);
+      this.d.tickets.push(t);
+      this.save();
+    });
   }
 
   private save() {
@@ -134,11 +226,11 @@ export class MemoryStore implements Store {
     return [...this.d.events].sort((a, b) => a.startsAt.localeCompare(b.startsAt)).slice(0, limit);
   }
   async seatsTaken(eventId: string, now: number) {
-    return this.d.tickets.filter((t) => t.eventId === eventId).length + this.liveHolds(eventId, now).length;
+    return this.seats(eventId).length + this.liveHolds(eventId, now).length;
   }
   async humanCount(eventId: string, nullifier: string, now: number) {
     return (
-      this.d.tickets.filter((t) => t.eventId === eventId && t.nullifier === nullifier).length +
+      this.seats(eventId).filter((t) => t.nullifier === nullifier && t.status !== "listed").length +
       this.liveHolds(eventId, now).filter((h) => h.nullifier === nullifier).length
     );
   }
@@ -151,11 +243,11 @@ export class MemoryStore implements Store {
         this.save();
         return true;
       }
-      const seats = this.d.tickets.filter((t) => t.eventId === eventId).length + this.liveHolds(eventId, now).length;
+      const seats = this.seats(eventId).length + this.liveHolds(eventId, now).length;
       if (seats >= limits.capacity) return false;
       if (nullifier !== "0") {
         const mine =
-          this.d.tickets.filter((t) => t.eventId === eventId && t.nullifier === nullifier).length +
+          this.seats(eventId).filter((t) => t.nullifier === nullifier && t.status !== "listed").length +
           this.liveHolds(eventId, now).filter((h) => h.nullifier === nullifier).length;
         if (mine >= limits.perPerson) return false;
       }
@@ -245,6 +337,50 @@ export class PgStore implements Store {
       key text primary key, event_id text not null, nullifier text not null, at bigint not null)`;
     await s`create table if not exists rejections (
       id bigserial primary key, event_id text not null, data jsonb not null)`;
+    await s`create table if not exists entries (
+      event_id text not null, nullifier text not null, data jsonb not null, primary key (event_id, nullifier))`;
+  }
+
+  async updateEvent(id: string, patch: Partial<EventRec>) {
+    const s = await this.q();
+    await s`update events set data = data || ${s.json(patch as never)} where id = ${id}`;
+  }
+  async addEntry(e: Entry) {
+    const s = await this.q();
+    const r = await s`insert into entries (event_id, nullifier, data) values (${e.eventId}, ${e.nullifier}, ${s.json(e as never)})
+      on conflict do nothing returning event_id`;
+    return r.length > 0;
+  }
+  async listEntries(eventId: string) {
+    const s = await this.q();
+    const r = await s`select data from entries where event_id = ${eventId}`;
+    return r.map((x) => x.data as Entry);
+  }
+  async claimListing(eventId: string, holdKey: string, now: number) {
+    const s = await this.q();
+    return s.begin(async (tx) => {
+      await tx`select pg_advisory_xact_lock(hashtext(${"resale:" + eventId}))`;
+      const r = await tx`select data from tickets where event_id = ${eventId} and data->>'status' = 'listed'
+        order by data->'listing'->>'at' asc`;
+      const listed = r.map((x) => x.data as TicketRec);
+      const mine = listed.find((t) => t.listing?.holdKey === holdKey && (t.listing?.holdUntil ?? 0) > now);
+      const pick = mine ?? listed.find((t) => !t.listing?.holdUntil || t.listing.holdUntil <= now);
+      if (!pick) return null;
+      const listing = { ...pick.listing!, holdKey, holdUntil: now + HOLD_MS };
+      await tx`update tickets set data = data || ${tx.json({ listing } as never)} where id = ${pick.id}`;
+      return { ...pick, listing };
+    }) as Promise<TicketRec | null>;
+  }
+  async completeResale(oldId: string, t: TicketRec, holdKey: string) {
+    const s = await this.q();
+    await s.begin(async (tx) => {
+      const done = await tx`update tickets set data = data || ${tx.json({ status: "resold", resoldTo: t.id, resoldAt: t.createdAt } as never)}
+        where id = ${oldId} and data->>'status' = 'listed' returning id`;
+      if (!done.length) throw new Error("listing_gone");
+      await tx`insert into tickets (id, event_id, nullifier, payment_tx, settle_status, created_at, data)
+        values (${t.id}, ${t.eventId}, ${t.nullifier}, ${t.paymentTx}, ${t.settleStatus}, ${t.createdAt}, ${tx.json(t as never)})`;
+      await tx`delete from holds where key = ${holdKey}`;
+    });
   }
 
   private async q() {
@@ -274,14 +410,14 @@ export class PgStore implements Store {
   async seatsTaken(eventId: string, now: number) {
     const s = await this.q();
     const r = await s`select
-      (select count(*) from tickets where event_id = ${eventId}) +
+      (select count(*) from tickets where event_id = ${eventId} and data->>'status' <> 'resold') +
       (select count(*) from holds where event_id = ${eventId} and at > ${now - HOLD_MS}) as n`;
     return Number(r[0].n);
   }
   async humanCount(eventId: string, nullifier: string, now: number) {
     const s = await this.q();
     const r = await s`select
-      (select count(*) from tickets where event_id = ${eventId} and nullifier = ${nullifier}) +
+      (select count(*) from tickets where event_id = ${eventId} and nullifier = ${nullifier} and data->>'status' not in ('resold','listed')) +
       (select count(*) from holds where event_id = ${eventId} and nullifier = ${nullifier} and at > ${now - HOLD_MS}) as n`;
     return Number(r[0].n);
   }
@@ -294,12 +430,12 @@ export class PgStore implements Store {
       const ex = await tx`update holds set at = ${now} where key = ${key} returning key`;
       if (ex.length) return true;
       const seats = await tx`select
-        (select count(*) from tickets where event_id = ${eventId}) +
+        (select count(*) from tickets where event_id = ${eventId} and data->>'status' <> 'resold') +
         (select count(*) from holds where event_id = ${eventId}) as n`;
       if (Number(seats[0].n) >= limits.capacity) return false;
       if (nullifier !== "0") {
         const mine = await tx`select
-          (select count(*) from tickets where event_id = ${eventId} and nullifier = ${nullifier}) +
+          (select count(*) from tickets where event_id = ${eventId} and nullifier = ${nullifier} and data->>'status' not in ('resold','listed')) +
           (select count(*) from holds where event_id = ${eventId} and nullifier = ${nullifier}) as n`;
         if (Number(mine[0].n) >= limits.perPerson) return false;
       }

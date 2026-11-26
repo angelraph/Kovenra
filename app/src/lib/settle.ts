@@ -78,6 +78,27 @@ async function doSettle(ticket: TicketRec, deps: SettleDeps): Promise<TicketRec>
   const submit = deps.submit ?? submitSwap;
 
   const fresh = (await store.getTicket(ticket.id)) ?? ticket;
+
+  // Face-value resale: the buyer paid Kovenra's wallet; pass exactly that amount to the seller, same token.
+  if (fresh.resale) {
+    if (fresh.settleStatus === "paid" || fresh.settleStatus === "converting") return fresh;
+    await store.updateTicket(fresh.id, { settleStatus: "converting", settleError: undefined });
+    try {
+      const token = fresh.paidToken === "CNGN" ? TOKENS.CNGN.address : TOKENS.USDT.address;
+      const tx = await chain.send(
+        token,
+        encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [fresh.resale.seller as Address, BigInt(fresh.paidAmount)] }),
+      );
+      const done: Partial<TicketRec> = { settleStatus: "paid", payoutTx: tx, resale: { ...fresh.resale, sellerPaidTx: tx } };
+      await store.updateTicket(fresh.id, done);
+      return { ...fresh, ...done };
+    } catch (e) {
+      const msg = (e as Error).message.slice(0, 300);
+      await store.updateTicket(fresh.id, { settleStatus: "failed", settleError: msg });
+      return { ...fresh, settleStatus: "failed", settleError: msg };
+    }
+  }
+
   if (fresh.paidToken === "CNGN") {
     await store.updateTicket(fresh.id, { settleStatus: "direct", ngnDelivered: fresh.paidAmount });
     return { ...fresh, settleStatus: "direct", ngnDelivered: fresh.paidAmount };

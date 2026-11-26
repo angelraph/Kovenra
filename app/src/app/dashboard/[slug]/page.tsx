@@ -6,9 +6,9 @@ import { adminKeyFor } from "@/lib/client/admin";
 import { celoscanTx, naira, short, usd } from "@/lib/format";
 
 interface Admin {
-  event: { title: string; slug: string; capacity: number; priceLabel: string; pageUrl: string; startsAt: string };
+  event: { title: string; slug: string; capacity: number; priceLabel: string; pageUrl: string; startsAt: string; mode?: string; drop?: { phase: string } | null };
   payoutAddress: string;
-  totals: { sold: number; checkedIn: number; ngnDeliveredLabel: string; pendingPayouts: number; blocked: number; blockedByReason: Record<string, number> };
+  totals: { sold: number; checkedIn: number; ngnDeliveredLabel: string; pendingPayouts: number; blocked: number; blockedByReason: Record<string, number>; resales?: number; listed?: number; entries?: number | null };
   tickets: { id: string; createdAt: string; status: string; paidToken: string; paidAmount: string; paymentTx: string; settleStatus: string; payoutTx: string | null; ngnDelivered: string | null }[];
   recentBlocked: { reason: string; agent: string; at: string }[];
 }
@@ -65,6 +65,13 @@ export default function Dashboard({ params }: { params: Promise<{ slug: string }
         <div className="card"><div className="stat">{t.ngnDeliveredLabel}</div><div className="stat-label">Naira in your wallet{t.pendingPayouts ? ` · ${t.pendingPayouts} converting` : ""}</div></div>
         <div className="card"><div className="stat">{t.checkedIn}</div><div className="stat-label">Checked in at the door</div></div>
         <div className="card"><div className="stat" style={{ color: "var(--bad)" }}>{t.blocked}</div><div className="stat-label">Bots and scalpers blocked</div></div>
+      </div>
+
+      <div className="row" style={{ gap: 8 }}>
+        {data.event.mode === "fair-drop" && <span className="pill pill-gold">Fair drop · {t.entries ?? 0} entered · {data.event.drop?.phase === "entries" ? "entries open" : data.event.drop?.phase === "drawing" ? "drawing" : data.event.drop?.phase === "claim" ? "winners paying" : "open to entrants"}</span>}
+        <span className="pill">{t.resales ?? 0} resold at face value</span>
+        {(t.listed ?? 0) > 0 && <span className="pill">{t.listed} handed back, waiting for a buyer</span>}
+        <Link className="pill pill-good" href={`/e/${slug}/fair`}>Public fairness report →</Link>
       </div>
 
       <div className="grid grid-2">

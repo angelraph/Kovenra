@@ -59,7 +59,7 @@ export default function Home() {
           <Reveal delay={0.55}>
             <div className="hero-meta">
               <span className="works"><b>Works with</b> MiniPay · Valora · MetaMask · any AI agent with Self Agent ID</span>
-              <Link href="/agents" className="newlink"><b>New:</b> AI agents can now buy tickets for you →</Link>
+              <Link href="/how-it-works#fair-drop" className="newlink"><b>New:</b> Fair Drop draws and face-value resale →</Link>
             </div>
           </Reveal>
           <Reveal delay={0.2} y={40}>

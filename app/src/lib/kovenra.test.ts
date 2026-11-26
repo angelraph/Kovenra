@@ -12,6 +12,7 @@ import { MemoryStore, type EventRec } from "./store";
 import type { FirmQuote } from "./textile";
 import { usdtForNaira } from "./textile";
 import { hashKey, parseTicketCode, ticketCode } from "./tickets";
+import { entryHash, rank } from "./drop";
 
 const SETTLER = getAddress("0x1111111111111111111111111111111111111111");
 const ORGANIZER = getAddress("0x2222222222222222222222222222222222222222");
@@ -288,5 +289,94 @@ describe("agent identity", () => {
     expect(md).toContain("POST https://kovenra.xyz/api/events/{slug}/buy");
     expect(md).toContain("agent #42");
     expect(md).toContain("USD₮");
+  });
+});
+describe("fair drop", () => {
+  const seed = "0x" + "ab".repeat(32);
+  let store: MemoryStore;
+  let deps: PurchaseDeps;
+
+  async function setup(over: Partial<EventRec>) {
+    store = new MemoryStore();
+    deps = { store, verifier: new FakeVerifier(), gateway: new FakeGateway(), rate: async () => RATE, settler: SETTLER };
+    const e = makeEvent({ capacity: 1, minAge: 0, mode: "fair-drop", ...over });
+    await store.createEvent(e);
+    for (const n of ["777", "888"]) await store.addEntry({ eventId: e.id, nullifier: n, entryHash: entryHash(e.id, n), agent: "0x", at: new Date().toISOString() });
+    return e;
+  }
+
+  it("won't sell while entries are open", async () => {
+    const e = await setup({ drop: { entryClosesAt: new Date(Date.now() + 3600_000).toISOString(), claimMinutes: 60 } });
+    const r = await purchase(e, req("0xa1"), deps);
+    expect(r.status).toBe(409);
+    expect(r.body.error).toBe("drop_entries_open");
+  });
+
+  it("lets only the drawn winner buy during the claim window, then opens to every entrant", async () => {
+    const drawAt = new Date(Date.now() - 60_000).toISOString();
+    const e = await setup({ drop: { entryClosesAt: new Date(Date.now() - 120_000).toISOString(), claimMinutes: 30, drawSeed: seed, drawBlock: "1", drawAt } });
+    const order = rank([{ entryHash: entryHash(e.id, "777") }, { entryHash: entryHash(e.id, "888") }], seed as `0x${string}`);
+    const winnerAgent = order[0] === entryHash(e.id, "777") ? "0xa1" : "0xb1";
+    const loserAgent = winnerAgent === "0xa1" ? "0xb1" : "0xa1";
+    expect((await purchase(e, req(loserAgent), deps)).body.error).toBe("drop_not_won");
+    expect((await purchase(e, req(winnerAgent), deps)).status).toBe(402);
+    // after the claim window, anyone who entered may buy (the winner's hold has since lapsed in this test)
+    const later = { ...deps, now: () => Date.now() + 31 * 60_000 + 6 * 60_000 };
+    expect((await purchase(e, req(loserAgent), later)).status).toBe(402);
+  });
+
+  it("refuses people who never entered", async () => {
+    const e = await setup({ drop: { entryClosesAt: new Date(Date.now() - 120_000).toISOString(), claimMinutes: 30, drawSeed: seed, drawBlock: "1", drawAt: new Date().toISOString() } });
+    await store.createEvent({ ...e, id: "evt_x", slug: "x" }).catch(() => undefined);
+    AGENTS["0xd1"] = { nullifier: "555", olderThan: 30 };
+    expect((await purchase(e, req("0xd1"), deps)).body.error).toBe("drop_not_entered");
+  });
+
+  it("ranks entries the same way every time (anyone can recompute it)", () => {
+    const xs = ["1", "2", "3", "4"].map((n) => ({ entryHash: entryHash("evt", n) }));
+    expect(rank(xs, seed as `0x${string}`)).toEqual(rank([...xs].reverse(), seed as `0x${string}`));
+  });
+});
+
+describe("face-value resale", () => {
+  it("sells a handed-back ticket at face value, retires the old QR and pays the seller", async () => {
+    const store = new MemoryStore();
+    const gateway = new FakeGateway();
+    const deps: PurchaseDeps = { store, verifier: new FakeVerifier(), gateway, rate: async () => RATE, settler: SETTLER };
+    const e = makeEvent({ capacity: 1, minAge: 0 });
+    await store.createEvent(e);
+    const buyNow = async (agent: string) => {
+      const first = await purchase(e, req(agent), deps);
+      if (first.status !== 402) return first;
+      const accepts = (first.body as { accepts: PaymentRequirements[] }).accepts;
+      return purchase(e, req(agent, pay(accepts[0])), deps);
+    };
+    const first = await buyNow("0xb1");
+    expect(first.status).toBe(200);
+    const oldId = (first.body as { ticket: { id: string } }).ticket.id;
+    expect((await purchase(e, req("0xa1"), deps)).status).toBe(409); // sold out, nothing listed
+
+    const SELLER = getAddress("0x3333333333333333333333333333333333333333");
+    await store.updateTicket(oldId, { status: "listed", listing: { seller: SELLER, at: new Date().toISOString() } });
+    const offer = await purchase(e, req("0xa1"), deps);
+    expect(offer.status).toBe(402);
+    const accepts = (offer.body as { accepts: PaymentRequirements[] }).accepts;
+    expect(accepts.every((a) => a.payTo === SETTLER)).toBe(true); // resale money goes via Kovenra to the seller
+    expect(accepts[0].amount).toBe(usdtForNaira(toUnits("15000", 6), RATE, 60).toString()); // face value, never more
+    const bought = await purchase(e, req("0xa1", pay(accepts[0])), deps);
+    expect(bought.status).toBe(200);
+    expect((await store.getTicket(oldId))?.status).toBe("resold");
+    const fresh = bought.toSettle!;
+    expect(fresh.resale?.seller).toBe(SELLER);
+    expect((await store.seatsTaken(e.id, Date.now()))).toBe(1);
+
+    const sent: { to: string; data: string }[] = [];
+    const chain: Chain = { address: SETTLER, allowance: async () => 0n, send: async (to, data) => { sent.push({ to, data }); return "0xrefund" as Hex; }, signTyped: async () => "0x" as Hex };
+    const done = await settleTicket(fresh, { store, chain });
+    expect(done.settleStatus).toBe("paid");
+    const call = decodeFunctionData({ abi: erc20Abi, data: sent[0].data as Hex });
+    expect(call.functionName).toBe("transfer");
+    expect((call.args as [Address, bigint])[0]).toBe(SELLER);
+    expect((call.args as [Address, bigint])[1]).toBe(BigInt(accepts[0].amount));
   });
 });

@@ -79,8 +79,8 @@ export default function LiveBoard() {
           {stats && stats.recent.length > 0 ? (
             stats.recent.map((r, i) => (
               <div className="feed-row" key={i}>
-                {r.kind === "sale" ? <Ticket size={16} className="gold" /> : <Bot size={16} style={{ color: "var(--bad)" }} />}
-                <span>{r.kind === "sale" ? "Ticket sold" : "Bot turned away"} · <span className="muted">{r.event}, {r.city}</span></span>
+                {r.kind === "blocked" ? <Bot size={16} style={{ color: "var(--bad)" }} /> : <Ticket size={16} className="gold" />}
+                <span>{r.kind === "sale" ? "Ticket sold" : r.kind === "resale" ? "Resold at face value" : "Bot turned away"} · <span className="muted">{r.event}, {r.city}</span></span>
                 <span className="t">{ago(r.at)}</span>
               </div>
             ))

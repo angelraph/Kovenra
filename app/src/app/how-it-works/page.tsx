@@ -28,6 +28,18 @@ export default function HowItWorks() {
         </div>
       </section>
 
+      <section className="section" id="fair-drop">
+        <div className="wrap">
+          <Reveal><span className="eyebrow">New</span><h2 style={{ marginTop: 14 }}>Fair Drop and face-value resale</h2></Reveal>
+          <div className="hair hair-3" style={{ marginTop: 30 }}>
+            <Reveal><div style={{ height: "100%" }}><h3>1. Enter, don&apos;t race</h3><p className="muted" style={{ marginTop: 8 }}>For hot shows, verified people enter a draw during a window. One entry per person, whichever agent or phone they use. Bots can&apos;t enter at all.</p></div></Reveal>
+            <Reveal delay={0.05}><div style={{ height: "100%" }}><h3>2. A Celo block picks</h3><p className="muted" style={{ marginTop: 8 }}>When entries close, the hash of the next Celo block decides the order. Nobody can know it in advance, and anyone can recompute it from the fairness report.</p></div></Reveal>
+            <Reveal delay={0.1}><div style={{ height: "100%" }}><h3>3. Resale only at face value</h3><p className="muted" style={{ marginTop: 8 }}>Can&apos;t go? Hand the ticket back. The next verified fan buys it at the original price, your QR stops working, and your money comes back automatically.</p></div></Reveal>
+          </div>
+          <Reveal><p className="muted" style={{ marginTop: 22 }}>Every event has a public fairness report: real people served, bots turned away, the most tickets any one person got, every resale, the draw proof and every transaction.</p></Reveal>
+        </div>
+      </section>
+
       <section className="section" id="naira">
         <div className="wrap feature-row">
           <Reveal>

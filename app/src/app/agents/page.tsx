@@ -5,11 +5,13 @@ import { Reveal } from "@/components/motion";
 import { Arrow } from "@/components/icons";
 import { SELF_REGISTRY } from "@/lib/chain";
 import { env } from "@/lib/env";
+import { findAgentId, IDENTITY_REGISTRY } from "@/lib/erc8004";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "For AI agents", description: "Let an AI agent buy a ticket for you. Kovenra serves agents with a verified human behind them and takes payment over x402." };
 
-export default function Agents() {
+export default async function Agents() {
+  const erc8004Id = await findAgentId().catch(() => null);
   return (
     <>
       <PageHead crumb="For AI agents" eyebrow="For AI agents" title="Agents can buy tickets too. Bots can't." lead="If your agent carries a Self Agent ID that links it to you, it can find an event, pay, and bring your ticket back. If it doesn't, it gets turned away before any money moves.">
@@ -37,8 +39,9 @@ export default function Agents() {
             <div className="hair hair-3">
               <div>
                 <span className="eyebrow">Kovenra&apos;s own identity</span>
-                <div className="big-num" style={{ marginTop: 14 }}>{env.agentId ? `#${env.agentId}` : "Pending"}</div>
-                <p className="small faint" style={{ marginTop: 8 }}>ERC-8004 agent in the Self Agent ID registry on Celo mainnet{env.agentId ? "" : ". Registration is in progress"}.</p>
+                <div className="big-num" style={{ marginTop: 14 }}>{erc8004Id ? `#${erc8004Id}` : "Pending"}</div>
+                <p className="small faint" style={{ marginTop: 8 }}>ERC-8004 agent in the official Identity Registry on Celo mainnet{env.agentId ? `, and Self Agent ID #${env.agentId}` : ""}.</p>
+                {erc8004Id && <a className="cell-title" href={`https://8004scan.io/agents/celo/${erc8004Id}`} target="_blank" rel="noreferrer">See it on 8004scan <Arrow size={16} /></a>}
               </div>
               <div>
                 <span className="eyebrow">Registration document</span>
@@ -46,8 +49,8 @@ export default function Agents() {
                 <a className="cell-title" href="/.well-known/agent-registration.json">agent-registration.json <Arrow size={16} /></a>
               </div>
               <div>
-                <span className="eyebrow">Registry</span>
-                <p className="muted mono small" style={{ marginTop: 14, wordBreak: "break-all" }}>{SELF_REGISTRY}</p>
+                <span className="eyebrow">Registries</span>
+                <p className="muted mono small" style={{ marginTop: 14, wordBreak: "break-all" }}>ERC-8004 · {IDENTITY_REGISTRY}<br />Self Agent ID · {SELF_REGISTRY}</p>
                 <a className="cell-title" href={env.agentAddress ? `https://celoscan.io/address/${env.agentAddress}` : `https://celoscan.io/address/${SELF_REGISTRY}`} target="_blank" rel="noreferrer">See it on Celoscan <Arrow size={16} /></a>
               </div>
             </div>

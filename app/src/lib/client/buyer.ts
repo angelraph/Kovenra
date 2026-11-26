@@ -84,6 +84,21 @@ export async function startVerification(minAge: number) {
   return { deepLink: session.deepLink, qr: session.scanUrl, done };
 }
 
+/** Send a request signed by this device's Self Agent ID key (used for fair-drop entry and result checks). */
+async function selfSigned(method: "GET" | "POST", path: string, body = "") {
+  const key = storedAgentKey();
+  if (!key) throw new Error("Verify with Self first.");
+  const agent = new SelfAgent({ privateKey: key, network: "mainnet" });
+  const url = `${window.location.origin}${path}`;
+  const headers = new Headers(await agent.signRequest(method, url, body));
+  if (body) headers.set("content-type", "application/json");
+  const res = await fetch(url, { method, headers, body: body || undefined });
+  return { ok: res.ok, status: res.status, body: (await res.json().catch(() => ({}))) as Record<string, unknown> };
+}
+
+export const enterDraw = (slug: string) => selfSigned("POST", `/api/events/${slug}/enter`, JSON.stringify({}));
+export const checkEntry = (slug: string) => selfSigned("GET", `/api/events/${slug}/entry`);
+
 export interface BuyResult {
   ok: boolean;
   status: number;

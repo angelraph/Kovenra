@@ -19,7 +19,20 @@ It happens because most ticket sites count accounts, not people. Anyone with a h
 - **A QR code that works once.** The organizer's phone is the scanner at the door. Copied or used tickets are caught on the spot.
 - **AI agents welcome, bots not.** An agent can buy for its person if it carries a Self Agent ID. All of one person's agents share that person's limit, so nobody can run a hundred bots to clear a show.
 
+- **Fair Drop for hot shows.** Instead of a race the fastest bot wins, verified people enter a
+  draw, one entry each. When entries close, the hash of the next Celo block picks the winners.
+  Nobody can know it in advance, and anyone can recompute the result.
+- **Resale only at face value.** Can't go? Hand the ticket back. The next verified fan buys it at
+  the original price, the old QR stops working, and the seller is paid automatically. A ticket
+  can never sell for more than face value, so touts have nothing to gain.
+- **A public fairness report for every event.** Real people served, bots turned away, the most
+  tickets any one person got, every resale, the draw proof and every transaction, on one page.
+
 It works anywhere in Nigeria. The price is set in naira, and fans abroad can pay in dollars.
+
+Kovenra is ERC-8004 agent **#10137** on Celo mainnet
+([registration tx](https://celoscan.io/tx/0x09cd538ed3a2974b373dff71d83797195f31c4fb4a0bf57d24828227eb96c9c0)),
+registered from its own wallet, which is also its x402 PayTo address and the wallet that sends every tagged transaction.
 
 ## How a sale works
 
@@ -55,6 +68,10 @@ The design notes, including what we learned from studying Figma, Mobbin and Fram
 | Textile FX conversion and payout | `app/src/lib/textile.ts`, `app/src/lib/settle.ts` |
 | ERC-8021 tags | `app/src/lib/attribution.ts` |
 | Live numbers for the landing page | `app/src/lib/stats.ts` |
+| Fair Drop: entries, verifiable draw, claim window | `app/src/lib/drop.ts` |
+| Face-value resale (listing, checkout, seller payout) | `app/src/lib/purchase.ts`, `app/src/lib/store.ts`, `app/src/lib/settle.ts` |
+| Fairness report | `app/src/lib/report.ts`, `app/src/app/e/[slug]/fair/` |
+| ERC-8004 registration from Kovenra's wallet | `app/src/lib/erc8004.ts`, `app/src/app/owner/` |
 | Agent skill file | `app/public/skill.md` |
 | Tests | `app/src/lib/kovenra.test.ts` |
 

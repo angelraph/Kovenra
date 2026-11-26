@@ -8,8 +8,17 @@ export const FAQS: Faq[] = [
     "It's how we keep tickets away from bots and touts. You scan your passport once in the free Self app, and from then on Kovenra knows you're a real, unique person.",
     "That's what lets us sell one ticket per person, so the show doesn't sell out to resellers in two minutes.",
   ] },
+  { cat: "Fans", top: true, q: "What is a fair drop?", a: [
+    "For shows that would sell out in seconds, the organizer can run a fair drop instead of a race. Verified people enter during a window, one entry each, however many agents or devices they use.",
+    "When entries close, the hash of the next Celo block picks the winners. Nobody, including Kovenra, can know that hash in advance, and anyone can check the result on the event's fairness report. Winners get time to pay, then leftover seats open to everyone who entered.",
+  ] },
+  { cat: "Fans", top: true, q: "I can't go anymore. Can I sell my ticket?", a: [
+    "Yes, at face value. Open your ticket and tap Hand it back. When the show is sold out, the next verified fan buys it at the original price, your old QR stops working, and the money goes to your wallet automatically.",
+    "Nobody can sell a Kovenra ticket for more than face value, so there's nothing for touts to make.",
+  ] },
   { cat: "Fans", q: "Which passports work?", a: [
     "Any passport with an NFC chip (the small chip symbol on the cover). Nigerian, UK, US and most other modern passports have one. Self reads the chip with your phone.",
+    "No passport? A verified friend can buy for you, up to the organizer's limit per person. There's a step-by-step guide at /verify.",
   ] },
   { cat: "Fans", q: "Do I need a crypto wallet?", a: [
     "You need a wallet on Celo to pay. MiniPay (inside Opera Mini) works great and is free. Any Celo wallet like Valora or MetaMask also works.",

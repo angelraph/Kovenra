@@ -2,7 +2,7 @@ import Link from "next/link";
 import EventCard from "@/components/EventCard";
 import PageHead, { CtaBand } from "@/components/PageHead";
 import { Reveal } from "@/components/motion";
-import { publicEvent } from "@/lib/api";
+import { publicEvent, soldOf } from "@/lib/api";
 import { getStore } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ async function upcoming() {
     const events = await store.listEvents(200);
     const now = Date.now();
     const live = events.filter((e) => Date.parse(e.startsAt) > now - 6 * 3600_000).sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
-    return Promise.all(live.map(async (e) => publicEvent(e, (await store.listTickets(e.id)).length)));
+    return Promise.all(live.map(async (e) => publicEvent(e, soldOf(await store.listTickets(e.id)))));
   } catch {
     return [];
   }

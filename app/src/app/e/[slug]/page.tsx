@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import BuyPanel from "@/components/BuyPanel";
 import { Scene, sceneFor } from "@/components/Scene";
-import { publicEvent } from "@/lib/api";
+import { publicEvent, soldOf } from "@/lib/api";
+import { ensureDraw } from "@/lib/drop";
 import { fromUnits } from "@/lib/chain";
 import { eventDate } from "@/lib/format";
 import { liveRate, priceFor } from "@/lib/purchase";
@@ -13,14 +14,16 @@ export const dynamic = "force-dynamic";
 
 async function load(slug: string) {
   const store = getStore();
-  const e = await store.getEventBySlug(slug);
-  if (!e) return null;
-  const sold = (await store.listTickets(e.id)).length;
+  const found = await store.getEventBySlug(slug);
+  if (!found) return null;
+  const e = await ensureDraw(found, store).catch(() => found);
+  const all = await store.listTickets(e.id);
+  const entries = e.mode === "fair-drop" ? (await store.listEntries(e.id)).length : undefined;
   let priceUsdt: string | null = null;
   try {
     priceUsdt = fromUnits((await priceFor(e, await liveRate())).usdt, 6, 6);
   } catch {}
-  return { ...publicEvent(e, sold), priceUsdt };
+  return { ...publicEvent(e, soldOf(all), entries), priceUsdt, listed: all.filter((t) => t.status === "listed").length };
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -47,14 +50,18 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
             <span className="pill">{e.perPersonLimit} per person</span>
             {e.minAge > 0 && <span className="pill">{e.minAge}+</span>}
             <span className="pill">{e.sold} of {e.capacity} sold</span>
+            {e.mode === "fair-drop" && <span className="pill pill-gold">Fair drop · {e.drop?.entries ?? 0} entered</span>}
           </div>
           <div className="bar"><span style={{ width: `${Math.min(100, (e.sold / e.capacity) * 100)}%` }} /></div>
           {e.description && <p style={{ whiteSpace: "pre-wrap", marginTop: 16, color: "#d4d4d8" }}>{e.description}</p>}
           <div className="card card-tight small muted" style={{ marginTop: 20 }}>
-            {e.humansOnly
-              ? "Fair drop: every ticket goes to a real, unique person. Bots and duplicate accounts can't buy, so nobody resells at triple the price."
-              : "Pay in USD₮ or cNGN. Your ticket is a QR code that works once at the door."}
+            {e.mode === "fair-drop"
+              ? "Fair drop: verified people enter the draw, one entry each. When entries close, a Celo block picks the winners, and anyone can check the result. No bots, no fastest-finger race."
+              : e.humansOnly
+                ? "Every ticket goes to a real, unique person. Bots and duplicate accounts can't buy. If someone can't go, they hand the ticket back and it's resold at face value, never more."
+                : "Pay in USD₮ or cNGN. Your ticket is a QR code that works once at the door."}
           </div>
+          <Link href={`/e/${e.slug}/fair`} className="link-arrow" style={{ marginTop: 6 }}>See this event&apos;s fairness report →</Link>
         </div>
         <BuyPanel
           slug={e.slug}
@@ -64,6 +71,8 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
           humansOnly={e.humansOnly}
           minAge={e.minAge}
           perPersonLimit={e.perPersonLimit}
+          listed={e.listed}
+          drop={e.drop ? { phase: e.drop.phase, entryClosesAt: e.drop.entryClosesAt, claimMinutes: e.drop.claimMinutes, drawAt: e.drop.drawAt ?? null, entries: e.drop.entries ?? 0 } : null}
         />
       </div>
     </div>

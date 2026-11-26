@@ -16,9 +16,14 @@ interface Props {
   humansOnly: boolean;
   minAge: number;
   perPersonLimit: number;
+  /** Tickets handed back by their owners, buyable at face value once sold out. */
+  listed?: number;
+  drop?: { phase: "entries" | "drawing" | "claim" | "open"; entryClosesAt: string; claimMinutes: number; drawAt: string | null; entries: number } | null;
 }
 
-type Step = "idle" | "verify" | "verifying" | "wallet" | "confirm" | "paying" | "done";
+type Step = "idle" | "verify" | "verifying" | "wallet" | "confirm" | "paying" | "done" | "entered";
+
+const when = (iso: string) => new Date(iso).toLocaleString("en-NG", { weekday: "short", hour: "numeric", minute: "2-digit", day: "numeric", month: "short", timeZone: "Africa/Lagos" });
 
 function toUnits6(s: string): bigint {
   const [w, f = ""] = s.split(".");
@@ -46,9 +51,19 @@ export default function BuyPanel(p: Props) {
   }, []);
 
   const price = p.priceUsdt ? toUnits6(p.priceUsdt) : null;
+  const [dropNote, setDropNote] = useState<string | null>(null);
+
+  /** What to do once the fan is verified: enter the draw, check the draw, or go to payment. */
+  async function next() {
+    const ph = p.drop?.phase;
+    if (ph === "entries") return enter();
+    if (ph === "claim" || ph === "open") return checkDraw();
+    return wallet();
+  }
 
   async function begin() {
     setError(null);
+    setDropNote(null);
     if (p.humansOnly) {
       setStep("wallet");
       const s = await (await lib()).agentStatus().catch(() => null);
@@ -58,7 +73,35 @@ export default function BuyPanel(p: Props) {
       }
       setVerified(true);
     }
-    await wallet();
+    await next();
+  }
+
+  async function enter() {
+    setStep("wallet");
+    const r = await (await lib()).enterDraw(p.slug).catch((e: Error) => ({ ok: false, status: 0, body: { message: e.message } as Record<string, unknown> }));
+    if (r.ok) {
+      setDropNote(String(r.body.message ?? "You're in the draw."));
+      setStep("entered");
+    } else {
+      setError(String(r.body.message ?? "Couldn't enter the draw."));
+      setStep("idle");
+    }
+  }
+
+  async function checkDraw() {
+    setStep("wallet");
+    const r = await (await lib()).checkEntry(p.slug).catch(() => null);
+    const b = (r?.body ?? {}) as { entered?: boolean; winner?: boolean; place?: number; entries?: number; phase?: string; claimUntil?: string };
+    if (!r?.ok || !b.entered) {
+      setError("You didn't enter this drop, so you can't buy a ticket for it.");
+      return setStep("idle");
+    }
+    if (b.winner || b.phase === "open") {
+      setDropNote(b.winner ? `You won a seat (#${b.place} of ${b.entries}).${b.claimUntil ? ` Pay before ${when(b.claimUntil)}.` : ""}` : "The claim window is over, and seats are open to everyone who entered.");
+      return wallet();
+    }
+    setDropNote(`Not picked this time: you're #${b.place} of ${b.entries}.${b.claimUntil ? ` If winners don't claim by ${when(b.claimUntil)}, the remaining seats open to everyone who entered.` : ""}`);
+    setStep("idle");
   }
 
   async function verify() {
@@ -71,7 +114,7 @@ export default function BuyPanel(p: Props) {
       await s.done;
       setVerified(true);
       setLink(null);
-      await wallet();
+      await next();
     } catch (e) {
       setError((e as Error).message || "Verification did not finish. Try again.");
       setStep("verify");
@@ -124,12 +167,25 @@ export default function BuyPanel(p: Props) {
     }
   }
 
-  if (p.remaining <= 0) {
-    return <div className="card"><div className="price">Sold out</div><p className="muted small" style={{ marginTop: 6 }}>Every ticket went to a real person.</p></div>;
+  const resale = p.remaining <= 0 && (p.listed ?? 0) > 0;
+  if (p.remaining <= 0 && !resale) {
+    return (
+      <div className="card">
+        <div className="price">Sold out</div>
+        <p className="muted small" style={{ marginTop: 6 }}>Every ticket went to a real person. If someone can&apos;t go, their ticket comes back here at face value. Check again later.</p>
+      </div>
+    );
   }
 
   const short = buyer ? `${buyer.slice(0, 6)}…${buyer.slice(-4)}` : "";
   const enough = balance === null || price === null || balance >= price;
+  const ph = p.drop?.phase;
+  const idleLabel = !price ? "Price unavailable, try again shortly"
+    : ph === "entries" ? "Enter the fair drop"
+    : ph === "drawing" ? "Drawing winners…"
+    : ph === "claim" || ph === "open" ? "Check if you won"
+    : resale ? "Buy a returned ticket at face value"
+    : "Get your ticket";
 
   return (
     <div className="card stack">
@@ -138,14 +194,26 @@ export default function BuyPanel(p: Props) {
           <div className="price">{p.priceLabel}</div>
           {p.priceUsdt && <div className="small muted">≈ ${Number(p.priceUsdt).toFixed(2)} USD₮ at today&apos;s rate</div>}
         </div>
-        <span className="small muted">{p.remaining} left</span>
+        <span className="small muted">{resale ? `${p.listed} returned` : `${p.remaining} left`}</span>
       </div>
 
-      {step === "idle" && (
-        <button className="btn btn-block" onClick={begin} disabled={!price}>
-          {price ? "Get your ticket" : "Price unavailable, try again shortly"}
-        </button>
+      {p.drop && (
+        <div className="notice" style={{ borderColor: "rgba(253,177,41,0.35)" }}>
+          <b className="gold">Fair drop</b>
+          <p className="small muted" style={{ marginTop: 4 }}>
+            {ph === "entries" && <>Entries close {when(p.drop.entryClosesAt)}. {p.drop.entries} {p.drop.entries === 1 ? "person has" : "people have"} entered. One entry per person; a Celo block picks the winners.</>}
+            {ph === "drawing" && <>Entries are closed. The draw uses the first Celo block after closing time. Check back in a minute.</>}
+            {ph === "claim" && p.drop.drawAt && <>Winners are drawn. They have until {when(new Date(Date.parse(p.drop.drawAt) + p.drop.claimMinutes * 60_000).toISOString())} to pay.</>}
+            {ph === "open" && <>The claim window is over. Any seats left are open to everyone who entered.</>}
+          </p>
+        </div>
       )}
+
+      {step === "idle" && (
+        <button className="btn btn-block" onClick={begin} disabled={!price || ph === "drawing"}>{idleLabel}</button>
+      )}
+      {dropNote && <div className="notice notice-good">{dropNote}</div>}
+      {step === "entered" && <p className="small faint">Come back to this page when entries close to see if you won.</p>}
 
       {(step === "verify" || step === "verifying") && (
         <div className="stack">
@@ -165,7 +233,7 @@ export default function BuyPanel(p: Props) {
               )}
               {link && <a className="btn btn-ghost btn-block" href={link.deepLink}>Open the Self app</a>}
               <div className="row" style={{ justifyContent: "center" }}><span className="spinner" /> <span className="muted small">Waiting for your scan…</span></div>
-              <a className="small muted" href="https://self.xyz" target="_blank" rel="noreferrer">Don&apos;t have Self? Get it free</a>
+              <a className="small muted" href="/verify" target="_blank" rel="noreferrer">First time? See the 2-minute guide</a>
             </div>
           )}
         </div>
