@@ -44,7 +44,7 @@ export default async function Proof() {
             ))}
           </div>
         </Reveal>
-        <p className="small faint" style={{ marginTop: 14 }}>Every Kovenra transaction carries our ERC-8021 attribution tag, so you can find them all on Celoscan.</p>
+        <p className="small faint" style={{ marginTop: 14 }}>Every conversion and payout Kovenra sends carries our ERC-8021 attribution tag, so you can find them all on Celoscan. The buyer's payment itself is sent by Celo's x402 service, not by Kovenra, so it doesn't carry our tag.</p>
       </section>
     </>
   );

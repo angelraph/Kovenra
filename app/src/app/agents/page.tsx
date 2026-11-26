@@ -26,7 +26,7 @@ export default async function Agents() {
               <div><h3>Who&apos;s asking?</h3><p>We check the Self Agent ID signature over the exact request against the registry on Celo. No verified human behind it means a 403. Bots never reach the payment step.</p></div>
               <div><h3>Is it fair?</h3><p>We hold a seat against the person&apos;s anonymous Self number, which is the same for all of their agents. A second agent from the same person hits the same limit and gets a 429.</p></div>
               <div><h3>Pay</h3><p>A 402 offers USD₮ (gasless) or cNGN. We settle it on-chain through Celo&apos;s facilitator before writing the ticket.</p></div>
-              <div><h3>Naira for the organizer</h3><p>USD₮ is converted on Textile FX and sent to the organizer as cNGN. Every transaction carries our ERC-8021 tag.</p></div>
+              <div><h3>Naira for the organizer</h3><p>USD₮ is converted on Textile FX and sent to the organizer as cNGN. Every conversion and payout carries our ERC-8021 tag.</p></div>
             </div>
           </Reveal>
         </div>

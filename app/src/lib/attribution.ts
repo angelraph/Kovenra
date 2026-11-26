@@ -3,7 +3,7 @@ import { concat, type Hex } from "viem";
 import { env } from "./env";
 
 /**
- * ERC-8021 attribution. Every Kovenra transaction carries the hackathon code
+ * ERC-8021 attribution. Every transaction Kovenra sends (approve, swap, payout) carries the hackathon code
  * (plus our own "kovenra" code for analytics). A transaction sent without the
  * tag can never be credited later, so every server-side send goes through
  * `tagCalldata` and the client is built with the suffix.
