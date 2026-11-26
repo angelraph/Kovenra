@@ -46,9 +46,10 @@ export async function findAgentId(): Promise<string | null> {
   const latest = await pub.getBlockNumber();
   const event = ABI.find((x) => x.type === "event" && x.name === "Transfer")!;
   let id: string | null = null;
-  // Walk back in chunks (public RPCs cap log ranges); ~8 days of Celo blocks.
-  for (let to = latest; to > latest - 700_000n && !id; to -= 50_000n) {
-    const from = to - 49_999n;
+  // Walk back in 5,000-block chunks (Forno's limit), about a day and a half.
+  // Set ERC8004_AGENT_ID once registered so this never has to run.
+  for (let to = latest; to > latest - 120_000n && !id; to -= 5_000n) {
+    const from = to - 4_999n;
     const logs = await pub
       .getLogs({ address: IDENTITY_REGISTRY, event: event as never, args: { to: owner } as never, fromBlock: from, toBlock: to })
       .catch(() => []);
