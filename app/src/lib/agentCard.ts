@@ -9,8 +9,10 @@ import { env, settlerAddressFromEnv } from "./env";
  * Kovenra's entry in the Self Agent ID registry by `npm run agent:card`.
  * Everything in it is public.
  */
-export function kovenraAgentDocument(base = env.baseUrl) {
-  const registrations = env.agentId ? [{ agentId: env.agentId, agentRegistry: `eip155:42220:${SELF_REGISTRY}` }] : [];
+export function kovenraAgentDocument(base = env.baseUrl, erc8004Id?: string | null) {
+  const registrations: { agentId: number; agentRegistry: string }[] = [];
+  if (erc8004Id) registrations.push({ agentId: Number(erc8004Id), agentRegistry: "eip155:42220:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432" });
+  if (env.agentId) registrations.push({ agentId: env.agentId, agentRegistry: `eip155:42220:${SELF_REGISTRY}` });
   const payTo = settlerAddressFromEnv();
   return {
     type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1" as const,

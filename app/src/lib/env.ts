@@ -35,6 +35,8 @@ export const env = {
   agentId: opt("KOVENRA_AGENT_ID") ? Number(opt("KOVENRA_AGENT_ID")) : undefined,
   /** Kovenra's agent address in that registry. Public. */
   agentAddress: opt("KOVENRA_AGENT_ADDRESS"),
+  /** Kovenra's agent ID in the official ERC-8004 Identity Registry (found on-chain if unset). Public. */
+  erc8004AgentId: opt("ERC8004_AGENT_ID"),
 };
 
 export function settlerAddressFromEnv(): Address | undefined {

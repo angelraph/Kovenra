@@ -7,6 +7,7 @@ import { getGateway } from "./payments";
 import { liveRate, priceFor, purchase } from "./purchase";
 import { getVerifier } from "./selfgate";
 import { liveChain, settlePending, settleTicket } from "./settle";
+import { identityStatus, registerIdentity, updateIdentityURI } from "./erc8004";
 import { chainPulse, liveStats } from "./stats";
 import { getStore, type EventRec, type TicketRec } from "./store";
 import { checkAdmin, hashKey, newAdminKey, newId, parseTicketCode, slugify, ticketCode } from "./tickets";
@@ -82,6 +83,26 @@ export function buildApi(defer: Defer) {
   app.get("/chain", async (c) => {
     c.header("cache-control", "public, s-maxage=4, stale-while-revalidate=10");
     return c.json(await chainPulse());
+  });
+
+  // Kovenra's own ERC-8004 identity (official Identity Registry on Celo mainnet).
+  app.get("/identity", async (c) => {
+    c.header("cache-control", "public, s-maxage=30");
+    return c.json(await identityStatus());
+  });
+
+  const ownerOnly = (auth: string | undefined) => Boolean(process.env.CRON_SECRET) && auth === `Bearer ${process.env.CRON_SECRET}`;
+
+  app.post("/identity/register", async (c) => {
+    if (!ownerOnly(c.req.header("authorization"))) return c.json({ error: "forbidden", message: "Wrong password." }, 403);
+    const r = await registerIdentity();
+    return c.json({ ok: true, ...r, txUrl: txUrl(r.tx) });
+  });
+
+  app.post("/identity/update-uri", async (c) => {
+    if (!ownerOnly(c.req.header("authorization"))) return c.json({ error: "forbidden", message: "Wrong password." }, 403);
+    const tx = await updateIdentityURI();
+    return c.json({ ok: true, tx, txUrl: txUrl(tx) });
   });
 
   app.get("/events", async (c) => {
