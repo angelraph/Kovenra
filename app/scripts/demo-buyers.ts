@@ -28,7 +28,7 @@ type Row = { buyer: string; expected: string; got: number; pass: boolean; detail
 
 async function main() {
   loadEnv();
-  const base = (arg("base") ?? process.env.PUBLIC_BASE_URL ?? "https://kovenra.vercel.app").replace(/\/$/, "");
+  const base = (arg("base") ?? process.env.SITE_URL ?? process.env.PUBLIC_BASE_URL ?? "https://kovenra.xyz").replace(/\/$/, "");
   let slug = arg("event");
   if (!slug || slug === "true") {
     const list = (await (await fetch(`${base}/api/events`)).json()) as { events: { slug: string; title: string; humansOnly: boolean }[] };

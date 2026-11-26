@@ -28,8 +28,8 @@ async function main() {
   // The document reads these at import time, so set them before importing it.
   process.env.KOVENRA_AGENT_ID ??= String(saved.agentId);
   process.env.KOVENRA_AGENT_ADDRESS ??= saved.agentAddress;
-  const base = (arg("base") ?? process.env.PUBLIC_BASE_URL ?? "https://kovenra.vercel.app").replace(/\/$/, "");
-  process.env.PUBLIC_BASE_URL = base;
+  const base = (arg("base") ?? process.env.SITE_URL ?? process.env.PUBLIC_BASE_URL ?? "https://kovenra.xyz").replace(/\/$/, "");
+  process.env.SITE_URL = base;
   const { kovenraAgentDocument } = await import("../src/lib/agentCard");
   const { tagCalldata } = await import("../src/lib/attribution");
 

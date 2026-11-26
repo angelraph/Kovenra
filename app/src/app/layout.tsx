@@ -9,7 +9,7 @@ const sans = Inter_Tight({ variable: "--font-sans", subsets: ["latin"], display:
 const display = Plus_Jakarta_Sans({ variable: "--font-display", subsets: ["latin"], display: "swap" });
 const mono = JetBrains_Mono({ variable: "--font-mono", subsets: ["latin"], display: "swap" });
 
-const base = process.env.PUBLIC_BASE_URL ?? "http://localhost:3000";
+const base = process.env.SITE_URL ?? process.env.PUBLIC_BASE_URL ?? "http://localhost:3000";
 
 export const metadata: Metadata = {
   metadataBase: new URL(base),
