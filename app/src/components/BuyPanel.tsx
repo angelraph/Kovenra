@@ -46,6 +46,16 @@ export default function BuyPanel(p: Props) {
     const eth = (window as unknown as { ethereum?: { isMiniPay?: boolean } }).ethereum;
     setMobile(/Android|iPhone|iPad/i.test(navigator.userAgent) || Boolean(eth?.isMiniPay));
     setHasWallet(Boolean(eth));
+    // Inside MiniPay the wallet connects on its own, no button (MiniPay's listing rule).
+    if (eth?.isMiniPay) {
+      lib()
+        .then(async (b) => {
+          const addr = await b.connectWallet();
+          setBuyer(addr);
+          setBalance(await b.usdtBalance(addr).catch(() => null));
+        })
+        .catch(() => {});
+    }
     try {
       setVerified(Boolean(localStorage.getItem(AGENT_KEY)));
     } catch {
@@ -130,7 +140,7 @@ export default function BuyPanel(p: Props) {
     setStep("wallet");
     try {
       const b = await lib();
-      const addr = await b.connectWallet();
+      const addr = buyer ?? (await b.connectWallet());
       setBuyer(addr);
       setBalance(await b.usdtBalance(addr).catch(() => null));
       setStep("confirm");
