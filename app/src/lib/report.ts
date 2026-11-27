@@ -17,8 +17,13 @@ const REASON_LABEL: Record<string, string> = {
 export async function fairnessReport(e: EventRec, store: Store, now = Date.now()) {
   const [tickets, rejections, entries] = await Promise.all([store.listTickets(e.id), store.rejections(e.id), store.listEntries(e.id)]);
   const seats = tickets.filter(countsAsSeat);
+  // Verified-humans events count per Self nullifier (one person, all their agents).
+  // Open events have no person id, so count per paying wallet instead.
   const perHuman = new Map<string, number>();
   for (const t of seats) if (t.status !== "listed" && t.nullifier !== "0") perHuman.set(t.nullifier, (perHuman.get(t.nullifier) ?? 0) + 1);
+  const perWallet = new Map<string, number>();
+  for (const t of seats) if (t.buyer && !t.buyer.startsWith("anon:")) perWallet.set(t.buyer.toLowerCase(), (perWallet.get(t.buyer.toLowerCase()) ?? 0) + 1);
+  const byHuman = e.humansOnly || perHuman.size > 0;
   const byReason: Record<string, number> = {};
   for (const r of rejections) byReason[r.reason] = (byReason[r.reason] ?? 0) + 1;
   const resales = tickets.filter((t) => t.resale);
@@ -33,6 +38,12 @@ export async function fairnessReport(e: EventRec, store: Store, now = Date.now()
       ticketsSold: seats.length,
       uniqueHumans: perHuman.size,
       maxTicketsOneHuman: Math.max(0, ...perHuman.values()),
+      uniqueWallets: perWallet.size,
+      maxTicketsOneWallet: Math.max(0, ...perWallet.values()),
+      /** What the two numbers below count: verified people, or paying wallets on an open event. */
+      countedBy: (byHuman ? "human" : "wallet") as "human" | "wallet",
+      uniqueBuyers: byHuman ? perHuman.size : perWallet.size,
+      maxTicketsOneBuyer: byHuman ? Math.max(0, ...perHuman.values()) : Math.max(0, ...perWallet.values()),
       checkedIn: seats.filter((t) => t.status === "used").length,
       botsBlocked: rejections.length,
       ngnPaidToOrganizer: ngnPaid.toString(),

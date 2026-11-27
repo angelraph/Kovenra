@@ -27,7 +27,7 @@ export default async function OG({ params }: { params: Promise<{ slug: string }>
         </div>
         <div style={{ fontSize: 60, fontWeight: 800, letterSpacing: -2, lineHeight: 1.05 }}>{r ? r.event.title : "Kovenra event"}</div>
         <div style={{ display: "flex", gap: 18 }}>
-          {stat(r?.totals.uniqueHumans ?? 0, "real people got tickets")}
+          {stat(r?.totals.uniqueBuyers ?? 0, r?.totals.countedBy === "wallet" ? "different buyers" : "real people got tickets")}
           {stat(r?.totals.botsBlocked ?? 0, "bots turned away", true)}
           {stat(0, "resold above face value")}
         </div>

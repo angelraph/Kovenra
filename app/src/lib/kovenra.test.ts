@@ -436,3 +436,20 @@ describe("pay by sending (MiniPay Send button)", () => {
     expect((await createSendOrder(vip, BUYER, deps())).status).toBe(400);
   });
 });
+
+describe("fairness report on an open event", () => {
+  it("counts different paying wallets when there is no Self check", async () => {
+    const { fairnessReport } = await import("./report");
+    const store = new MemoryStore();
+    const event = makeEvent({ humansOnly: false, minAge: 0 });
+    await store.createEvent(event);
+    const base = { eventId: event.id, nullifier: "0", agentId: "0", paidToken: "USDT" as const, paidAmount: "1050000", status: "valid" as const, createdAt: new Date().toISOString(), settleStatus: "paid" as const };
+    await store.addTicket({ ...base, id: "tkt_a", buyer: "0xAAA", paymentTx: "0x1" }, "h1");
+    await store.addTicket({ ...base, id: "tkt_b", buyer: "0xaaa", paymentTx: "0x2" }, "h2");
+    await store.addTicket({ ...base, id: "tkt_c", buyer: "0xBBB", paymentTx: "0x3" }, "h3");
+    const r = await fairnessReport(event, store);
+    expect(r.totals.countedBy).toBe("wallet");
+    expect(r.totals.uniqueBuyers).toBe(2);
+    expect(r.totals.maxTicketsOneBuyer).toBe(2);
+  });
+});

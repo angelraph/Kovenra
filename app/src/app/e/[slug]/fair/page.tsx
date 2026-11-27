@@ -19,7 +19,7 @@ async function load(slug: string) {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const r = await load((await params).slug);
-  return r ? { title: `Fairness report · ${r.event.title}`, description: `${r.totals.ticketsSold} tickets to ${r.totals.uniqueHumans} real people, ${r.totals.botsBlocked} bots turned away, 0 resales above face value.` } : {};
+  return r ? { title: `Fairness report · ${r.event.title}`, description: `${r.totals.ticketsSold} tickets to ${r.totals.uniqueBuyers} ${r.totals.countedBy === "human" ? "verified people" : "different buyers"}, ${r.totals.botsBlocked} bots turned away, 0 resales above face value.` } : {};
 }
 
 const short = (h: string) => `${h.slice(0, 10)}…${h.slice(-6)}`;
@@ -43,8 +43,8 @@ export default async function FairPage({ params }: { params: Promise<{ slug: str
 
       <section className="wrap" style={{ paddingBottom: 30 }}>
         <div className="hair hair-3">
-          <div><span className="eyebrow">Tickets sold</span><div className="big-num" style={{ marginTop: 14 }}>{t.ticketsSold}<span className="faint" style={{ fontSize: "0.4em" }}> / {r.event.capacity}</span></div><p className="small faint" style={{ marginTop: 8 }}>to {t.uniqueHumans} verified {t.uniqueHumans === 1 ? "person" : "people"}</p></div>
-          <div><span className="eyebrow">Most tickets one person got</span><div className="big-num" style={{ marginTop: 14 }}>{t.maxTicketsOneHuman}</div><p className="small faint" style={{ marginTop: 8 }}>limit was {r.event.perPersonLimit}, counted per human across all their agents</p></div>
+          <div><span className="eyebrow">Tickets sold</span><div className="big-num" style={{ marginTop: 14 }}>{t.ticketsSold}<span className="faint" style={{ fontSize: "0.4em" }}> / {r.event.capacity}</span></div><p className="small faint" style={{ marginTop: 8 }}>{t.countedBy === "human" ? <>to {t.uniqueBuyers} verified {t.uniqueBuyers === 1 ? "person" : "people"}</> : <>to {t.uniqueBuyers} different {t.uniqueBuyers === 1 ? "wallet" : "wallets"}</>}</p></div>
+          <div><span className="eyebrow">{t.countedBy === "human" ? "Most tickets one person got" : "Most tickets one wallet got"}</span><div className="big-num" style={{ marginTop: 14 }}>{t.maxTicketsOneBuyer}</div><p className="small faint" style={{ marginTop: 8 }}>{t.countedBy === "human" ? <>limit was {r.event.perPersonLimit}, counted per human across all their agents</> : <>This event doesn&apos;t ask buyers to verify who they are, so we count paying wallets.</>}</p></div>
           <div><span className="eyebrow">Bots turned away</span><div className="big-num goldtext" style={{ marginTop: 14 }}>{t.botsBlocked}</div><p className="small faint" style={{ marginTop: 8 }}>before any money moved</p></div>
           <div><span className="eyebrow">Resold above face value</span><div className="big-num" style={{ marginTop: 14 }}>0</div><p className="small faint" style={{ marginTop: 8 }}>{t.resales} {t.resales === 1 ? "ticket" : "tickets"} changed hands, all at face value</p></div>
           <div><span className="eyebrow">Paid to the organizer</span><div className="big-num" style={{ marginTop: 14 }}>{t.ngnPaidLabel}</div><p className="small faint" style={{ marginTop: 8 }}>in naira (cNGN), seconds after each sale</p></div>
