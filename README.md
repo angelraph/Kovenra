@@ -24,7 +24,7 @@ Built for the Celo **Agents Open for Business** hackathon (Loops House), Stablec
 | **Self Agent ID in the product** | Verified-humans events refuse unsigned or unverified buyers (403) and count tickets per human, so a person's second agent gets 429. [Live proof](docs/self-agent-id-proof.md) |
 | **Fairness** | Fair Drop (a draw seeded by a Celo block hash), resale only at face value, a public fairness report for every event, QR tickets that check in once, and an optional VIP door check where the guest re-proves with their own passport |
 | **App** | Landing page with live chain data, events, event pages, organizer dashboard and door scanner, plus 15 more pages; built for phones; works in MiniPay |
-| **Tests** | 32 unit tests (ticket counter, per-human limits, settlement, tags, Fair Drop, resale, send-to-pay, fairness report, friendly errors) |
+| **Tests** | 35 unit tests (ticket counter, per-human limits, settlement, tags, Fair Drop, resale, send-to-pay, fairness report, friendly errors) |
 
 ## Contents
 
@@ -149,6 +149,15 @@ Live run on Celo mainnet, 2026-11-27, against the verified-humans counter for El
 
 Code: [`purchase.ts#L90`](app/src/lib/purchase.ts#L90) (gate), [`selfgate.ts#L42`](app/src/lib/selfgate.ts#L42) (SelfAgentVerifier against the registry), [`store.ts`](app/src/lib/store.ts) (`hold`: per-human seats). Full write-up: [docs/self-agent-id-proof.md](docs/self-agent-id-proof.md). Fans verify in the browser with the Self app; inside MiniPay the page gives a copy-to-Chrome step, because MiniPay's browser can't open other apps.
 
+### The agent pays for its own safety checks on buy
+
+Kovenra's agent spends its own money, a fraction of a cent at a time, on [buy](https://usebuy.ai) (Celo's agent marketplace), over x402 from the agent wallet, capped at 2 cents a call and tagged with our ERC-8004 id:
+
+- **Payout wallet screening.** Before naira goes to an organizer, the agent checks their wallet against OFAC's sanctioned crypto addresses (0.002 USDC). A flagged wallet is never paid. Receipts: [Eleven Stars](https://celoscan.io/tx/0x4ab448c018a9dc2deabaa6c1669e22b292f0f2a32e2f49bf17a007d85fa2eb93), [Elysian Home](https://celoscan.io/tx/0x8a699966d016396b67d350b40aeee8f18d0fc76304395053058a9d424936cc80).
+- **Organizer check.** Fake-event scams come from fake pages. When an organizer gives their Instagram or X, the agent reads the public profile (0.005 USD₮) and the event page shows "Organizer checked" with what it found.
+
+Every paid call is listed on [kovenra.xyz/proof](https://kovenra.xyz/proof). Code: [`agentbuy.ts`](app/src/lib/agentbuy.ts).
+
 ### VIP door check
 
 A ticket QR can be screenshotted, and a phone can be stolen. On events with the door check on, a valid QR is not enough. The scanner shows a fresh Self code, the guest scans it with their own Self app and passport, and Kovenra compares the new proof's Self nullifier with the one stored on the ticket when it was bought. Same passport: "Welcome in". Different passport: "Wrong person, do not let them in". Kovenra never sees a name, it only compares two anonymous numbers. Organizers switch it on when they create an event or from their dashboard. Live on Eleven Stars VIP Summit. Code: [`door.ts`](app/src/lib/door.ts), the `/checkin` and `/door-confirm` routes in [`api.ts`](app/src/lib/api.ts).
@@ -180,6 +189,7 @@ Fan / AI agent ──(Self Agent ID signature + x402)──▶ kovenra.xyz/api  
 | ERC-8021 tags | `app/src/lib/attribution.ts` |
 | ERC-8004 registration and agent card | `app/src/lib/erc8004.ts`, `app/src/lib/agentCard.ts` |
 | VIP door check with Self | `app/src/lib/door.ts` |
+| Paid safety checks on buy | `app/src/lib/agentbuy.ts` |
 | Fair Drop | `app/src/lib/drop.ts` |
 | Fairness report | `app/src/lib/report.ts` |
 | Send-to-pay for other wallets | `app/src/lib/sendpay.ts` |
@@ -187,7 +197,7 @@ Fan / AI agent ──(Self Agent ID signature + x402)──▶ kovenra.xyz/api  
 
 ## Verification and security
 
-- **Tests:** 32 unit tests in [`app/src/lib/kovenra.test.ts`](app/src/lib/kovenra.test.ts) cover the Self gate, per-human limits shared by two agents, mid-payment holds, capacity, underpayments, cNGN direct payments, single check-in, the VIP door check, settlement through Textile, tag encoding, forged ticket codes, Fair Drop ranking, face-value resale, send-to-pay and the fairness report.
+- **Tests:** 35 unit tests in [`app/src/lib/kovenra.test.ts`](app/src/lib/kovenra.test.ts) cover the Self gate, per-human limits shared by two agents, mid-payment holds, capacity, underpayments, cNGN direct payments, single check-in, the VIP door check, settlement through Textile, tag encoding, forged ticket codes, Fair Drop ranking, face-value resale, send-to-pay and the fairness report.
 - **Mainnet checks:** every sale above was checked onchain: the conversion and payout exist and carry the tag. The Self proof was run against the live counter.
 - **Secrets:** the settlement key lives only in Vercel; agent keys are git-ignored; the organizer dashboard needs a per-event key (403 without it); ticket QR codes are HMAC-signed.
 - **Internal review:** [AUDIT.md](AUDIT.md) lists what we checked, what we fixed and what is still a known limit.

@@ -13,9 +13,10 @@ What we checked before submitting, what we fixed, and what is still a known limi
 | Organizer dashboard | Called the admin API with and without the key | Opens with the right key, 403 with a wrong one |
 | Door scanner | Sent a forged ticket code | Rejected: "Not a Kovenra ticket" |
 | VIP door check | Called door-confirm on the live Eleven Stars event without a Self proof, and without the organizer key | "Self could not confirm the passport" (ticket untouched); 403 without the key. Unit tests: same passport gets in once, a different passport is turned away |
+| Paid checks on buy | Ran the payout wallet screening for both live events from the agent wallet | Two 0.002 USDC payments settled on Celo from 0x617B…184Fb; both wallets clear; listed on /proof |
 | Every page and API | Requested all 30+ pages and the public API endpoints | All return 200; unknown pages 404 |
 | Settlement wallet | Read its balances | Enough CELO for gas; no USD₮ left sitting in it |
-| Build and tests | `next build`, `tsc`, lint, 32 unit tests | All pass |
+| Build and tests | `next build`, `tsc`, lint, 35 unit tests | All pass |
 
 ## Fixed during the hackathon
 

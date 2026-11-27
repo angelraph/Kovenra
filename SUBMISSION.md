@@ -19,6 +19,7 @@ Tracks: **Stablecoin Corridors (Textile FX)** and **Self Agent ID: Verified Agen
 | Self Agent ID | **#223** ([info](https://agent-api.self.xyz/api/agent/info/42220/223)); demo agent #224 ([info](https://agent-api.self.xyz/api/agent/info/42220/224)) |
 | Attribution tag | `celo_09b3ddb9ca23` |
 | Region | Nigeria (Enugu) |
+| buy purchases (agent paying for services) | Payout wallet sanctions screening: [0x4ab4…eb93](https://celoscan.io/tx/0x4ab448c018a9dc2deabaa6c1669e22b292f0f2a32e2f49bf17a007d85fa2eb93), [0x8a69…cc80](https://celoscan.io/tx/0x8a699966d016396b67d350b40aeee8f18d0fc76304395053058a9d424936cc80). Code: `app/src/lib/agentbuy.ts` |
 | Contact | Uzoechi Raphael, founder. X [@RaphElevator](https://x.com/RaphElevator), Telegram @raphdapope |
 
 ## Named users
