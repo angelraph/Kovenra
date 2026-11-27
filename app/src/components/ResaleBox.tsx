@@ -1,5 +1,6 @@
 "use client";
 
+import { friendlyError } from "@/lib/client/friendly";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -28,7 +29,7 @@ export default function ResaleBox({ id, code, listed, priceLabel }: { id: string
       setMsg({ ok: r.ok, text: j.message ?? (r.ok ? "Done." : "Something went wrong.") });
       if (r.ok) router.refresh();
     } catch (e) {
-      setMsg({ ok: false, text: (e as Error).message });
+      setMsg({ ok: false, text: friendlyError(e) });
     } finally {
       setBusy(false);
     }

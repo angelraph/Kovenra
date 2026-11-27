@@ -453,3 +453,14 @@ describe("fairness report on an open event", () => {
     expect(r.totals.maxTicketsOneBuyer).toBe(2);
   });
 });
+
+describe("friendly errors for fans", () => {
+  it("never shows raw SDK or wallet errors", async () => {
+    const { friendlyError } = await import("./client/friendly");
+    expect(friendlyError(new Error("Registration did not complete within 900000ms. The session may still be active — call waitForCompletion() again"))).toMatch(/Self didn't confirm/);
+    expect(friendlyError(new Error("User rejected the request."))).toMatch(/cancelled/);
+    expect(friendlyError(new Error("TypeError: Failed to fetch"))).toMatch(/connection/);
+    expect(friendlyError(new Error("execution reverted: ERC20: transfer amount exceeds balance"))).toMatch(/enough USD₮/);
+    expect(friendlyError(new Error("Sold out."))).toBe("Sold out.");
+  });
+});

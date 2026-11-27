@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { Address } from "viem";
 import SendPay from "./SendPay";
+import { friendlyError } from "@/lib/client/friendly";
 
 // Wallet, Self and x402 code is heavy; load it only when the fan taps "Get your ticket".
 const lib = () => import("@/lib/client/buyer");
@@ -93,7 +94,7 @@ export default function BuyPanel(p: Props) {
 
   async function enter() {
     setStep("wallet");
-    const r = await (await lib()).enterDraw(p.slug).catch((e: Error) => ({ ok: false, status: 0, body: { message: e.message } as Record<string, unknown> }));
+    const r = await (await lib()).enterDraw(p.slug).catch((e: Error) => ({ ok: false, status: 0, body: { message: friendlyError(e, "Couldn't enter the draw. Please try again.") } as Record<string, unknown> }));
     if (r.ok) {
       setDropNote(String(r.body.message ?? "You're in the draw."));
       setStep("entered");
@@ -132,7 +133,7 @@ export default function BuyPanel(p: Props) {
       setLink(null);
       await next();
     } catch (e) {
-      setError((e as Error).message || "Verification did not finish. Try again.");
+      setError(friendlyError(e, "Verification didn't finish. Please tap Verify with Self again."));
       setStep("verify");
     }
   }
@@ -148,7 +149,7 @@ export default function BuyPanel(p: Props) {
       setBalance(await b.usdtBalance(addr).catch(() => null));
       setStep("confirm");
     } catch (e) {
-      setError((e as Error).message);
+      setError(friendlyError(e, "Couldn't connect your wallet. Please try again."));
       setStep("idle");
     }
   }
@@ -178,8 +179,7 @@ export default function BuyPanel(p: Props) {
       setError(msg);
       setStep("confirm");
     } catch (e) {
-      const m = (e as Error).message;
-      setError(/rejected|denied/i.test(m) ? "You cancelled the payment." : m);
+      setError(friendlyError(e, "The payment didn't go through. Nothing was charged. Please try again."));
       setStep("confirm");
     }
   }
