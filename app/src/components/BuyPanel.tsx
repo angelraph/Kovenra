@@ -41,8 +41,7 @@ function openSelfApp(deepLink: string) {
   }
   const ua = navigator.userAgent;
   if (/Android/i.test(ua)) {
-    const fallback = encodeURIComponent("https://play.google.com/store/apps/details?id=com.proofofpassportapp");
-    window.location.href = `intent://open-passport${query}#Intent;scheme=proofofpassport;package=com.proofofpassportapp;S.browser_fallback_url=${fallback};end`;
+    window.location.href = `intent://open-passport${query}#Intent;scheme=proofofpassport;package=com.proofofpassportapp;end`;
   } else if (/iPhone|iPad|iPod/i.test(ua)) {
     window.location.href = `proofofpassport://open-passport${query}`;
   } else {
@@ -151,7 +150,7 @@ export default function BuyPanel(p: Props) {
       const s = await (await lib()).startVerification(p.minAge);
       setLink({ deepLink: s.deepLink, qr: s.qr });
       // Open the Self app directly (its own app link), so this page stays put and keeps waiting.
-      if (mobile) openSelfApp(s.deepLink);
+      if (mobile && !inMiniPay) openSelfApp(s.deepLink);
       await s.done;
       setVerified(true);
       setLink(null);
@@ -280,10 +279,29 @@ export default function BuyPanel(p: Props) {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={link.qr} alt="Scan with the Self app" style={{ width: 220, height: 220, margin: "0 auto", background: "#fff", borderRadius: 12, padding: 8 }} />
               )}
-              {link && (
+              {link && inMiniPay && (
+                <div className="notice" style={{ textAlign: "left" }}>
+                  <b>MiniPay can&apos;t open Self by itself. Do this:</b>
+                  <ol className="small muted" style={{ margin: "8px 0 0 18px", lineHeight: 1.7 }}>
+                    <li>Tap <b>Copy Self link</b> below</li>
+                    <li>Open <b>Chrome</b>, paste it in the address bar and go</li>
+                    <li>Self opens. Tap <b>Approve</b></li>
+                    <li>Come back to MiniPay. This page moves on by itself</li>
+                  </ol>
+                  <button
+                    className="btn btn-block"
+                    type="button"
+                    style={{ marginTop: 10 }}
+                    onClick={() => navigator.clipboard?.writeText(link.deepLink).then(() => setCopied(true)).catch(() => setCopied(false))}
+                  >
+                    {copied ? "Link copied ✓ Now paste it in Chrome" : "Copy Self link"}
+                  </button>
+                </div>
+              )}
+              {link && !inMiniPay && (
                 <button className="btn btn-block" type="button" onClick={() => openSelfApp(link.deepLink)}>Open the Self app</button>
               )}
-              {link && mobile && (
+              {link && mobile && !inMiniPay && (
                 <div className="notice" style={{ textAlign: "left" }}>
                   <p className="small muted">Self didn&apos;t open? Copy this link, paste it into Chrome (or Safari), open it, and Self will open. Then come back to this page.</p>
                   <button
