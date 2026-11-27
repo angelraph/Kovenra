@@ -16,6 +16,18 @@ Script: `app/scripts/demo-buyers.ts` (`npm run demo:buyers -- --event eleven-sta
 All three refusals are logged and appear on the event's public fairness report
 (https://kovenra.xyz/e/eleven-stars-vip-summit-7d4add/fair), under "Bots turned away".
 
+## A real verified purchase
+
+On 2026-11-27 a member of Eleven Stars VIPs (not on the Kovenra team) verified with their own passport in the Self app (Self Agent ID **#226**), and bought a ticket from MiniPay:
+
+| Step | Transaction |
+|---|---|
+| x402 payment (3.49 USD₮, through Celo's facilitator to our PayTo) | [0x4626…0c57](https://celoscan.io/tx/0x4626477ac681dfb6ad64f73d6fdb767b32b2a250040bc0c5cd4092f2941d0c57) |
+| Tagged Textile FX conversion USD₮ → cNGN | [0x3ca7…3d32](https://celoscan.io/tx/0x3ca79e631ef966350753c8b15c563a181c912a9fc4bbdcf6036497a4375d3d32) |
+| Tagged cNGN payout to the organizer (₦5,030.55) | [0xf8b6…8776](https://celoscan.io/tx/0xf8b6b776236ff5db9c2837f8d78fdf839024b6fd0a71d4c9f683296f96ec8776) |
+
+The event's fairness report counts it as 1 ticket to 1 verified person: https://kovenra.xyz/e/eleven-stars-vip-summit-7d4add/fair
+
 ## The agents
 - Kovenra's own Self Agent ID: #223, 0xBecc56A1dd6146feE6113695A94538AD323C0656
   (https://agent-api.self.xyz/api/agent/info/42220/223)
