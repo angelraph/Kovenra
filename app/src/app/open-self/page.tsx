@@ -17,10 +17,11 @@ export default function OpenSelf() {
     setOs(/Android/i.test(ua) ? "android" : /iPhone|iPad|iPod/i.test(ua) ? "ios" : "other");
   }, []);
 
+  // The Self app answers https://redirect.self.xyz links (verified App Link), not the old proofofpassport:// scheme.
   const appLink =
     os === "android"
-      ? `intent://open-passport${query}#Intent;scheme=proofofpassport;package=com.proofofpassportapp;end`
-      : `proofofpassport://open-passport${query}`;
+      ? `intent://redirect.self.xyz/${query}#Intent;scheme=https;package=com.proofofpassportapp;end`
+      : `https://redirect.self.xyz/${query}`;
   const store =
     os === "ios" ? "https://apps.apple.com/app/id6478563710" : "https://play.google.com/store/apps/details?id=com.proofofpassportapp";
 

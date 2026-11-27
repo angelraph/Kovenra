@@ -35,9 +35,12 @@ function selfAppLink(deepLink: string) {
   } catch {
     query = deepLink.includes("?") ? deepLink.slice(deepLink.indexOf("?")) : "";
   }
-  return /iPhone|iPad|iPod/i.test(navigator.userAgent)
-    ? `proofofpassport://open-passport${query}`
-    : `intent://open-passport${query}#Intent;scheme=proofofpassport;package=com.proofofpassportapp;end`;
+  // The Self app only answers https://redirect.self.xyz (a verified App Link); it does not register the
+  // old proofofpassport:// scheme that Self's redirect page still uses. On Android, an intent for that
+  // https URL aimed at the Self package opens the app directly. On iPhone, a tapped universal link does.
+  return /Android/i.test(navigator.userAgent)
+    ? `intent://redirect.self.xyz/${query}#Intent;scheme=https;package=com.proofofpassportapp;end`
+    : `https://redirect.self.xyz/${query}`;
 }
 
 /** Our own tap-to-open page for Self (see app/open-self), carrying Self's request. */
