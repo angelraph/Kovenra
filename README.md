@@ -4,7 +4,12 @@ Fair tickets for real people, paid in naira, on Celo.
 
 Kovenra (from "covenant", a promise) is a ticket counter that only sells to real, unique people. One person, one fair seat.
 
-**Live:** [kovenra.xyz](https://kovenra.xyz) · **Demo video (3 min):** [video/kovenra-demo.mp4](video/kovenra-demo.mp4) · [transcript](video/TRANSCRIPT.md)
+**Live:** [kovenra.xyz](https://kovenra.xyz) · **Demo video (3 min):** [YouTube](https://youtu.be/4DXQQ04w0ao) · [transcript](video/TRANSCRIPT.md) · **Post:** [on X](https://x.com/RaphElevator/status/2126167520813990031) · **Every sale:** [kovenra.xyz/proof](https://kovenra.xyz/proof)
+
+## Real use
+
+- **Elysian Home**, an events group in Enugu, sells tickets for *Elysian Home Laughter Night* (Coal City Garden, 15 Dec) on Kovenra. They shared the link in their WhatsApp groups. 10 tickets have gone to 10 different buyers so far, and every sale was converted to naira on Textile FX and paid to the organizer's own wallet, with tagged transactions: [fairness report](https://kovenra.xyz/e/elysian-home-laughter-night-f3ddd2/fair).
+- **Eleven Stars VIPs** runs *Eleven Stars VIP Summit* (Royalton Hotel, Abuja, 20 Dec) with verified humans switched on: one ticket per real person, checked with Self Agent ID. The live Self proof (403 / 403 / 402 / 429) is in [docs/self-agent-id-proof.md](docs/self-agent-id-proof.md).
 
 ## The problem
 
@@ -32,7 +37,7 @@ It happens because most ticket sites count accounts, not people. Anyone with a h
 
 It works anywhere in Nigeria. The price is set in naira, and fans abroad can pay in dollars.
 
-Kovenra is ERC-8004 agent **#10137** on Celo mainnet
+Kovenra is ERC-8004 agent **#10137** on Celo mainnet, with a verified Self Agent ID **#223**
 ([registration tx](https://celoscan.io/tx/0x09cd538ed3a2974b373dff71d83797195f31c4fb4a0bf57d24828227eb96c9c0)),
 registered from its own wallet, which is also its x402 PayTo address and the wallet that sends every tagged transaction.
 
