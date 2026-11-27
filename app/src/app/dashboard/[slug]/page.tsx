@@ -6,7 +6,7 @@ import { adminKeyFor } from "@/lib/client/admin";
 import { celoscanTx, naira, short, usd } from "@/lib/format";
 
 interface Admin {
-  event: { title: string; slug: string; capacity: number; priceLabel: string; pageUrl: string; startsAt: string; mode?: string; drop?: { phase: string } | null; humansOnly?: boolean; doorCheck?: boolean };
+  event: { title: string; slug: string; capacity: number; priceLabel: string; pageUrl: string; startsAt: string; mode?: string; drop?: { phase: string } | null; humansOnly?: boolean; doorCheck?: boolean; organizerCheck?: { platform: string; handle: string; found: boolean; followers?: number } | null; payoutChecked?: { sanctioned: boolean } | null };
   payoutAddress: string;
   totals: { sold: number; checkedIn: number; ngnDeliveredLabel: string; pendingPayouts: number; blocked: number; blockedByReason: Record<string, number>; resales?: number; listed?: number; entries?: number | null };
   tickets: { id: string; createdAt: string; status: string; paidToken: string; paidAmount: string; paymentTx: string; settleStatus: string; payoutTx: string | null; ngnDelivered: string | null }[];
@@ -27,6 +27,26 @@ export default function Dashboard({ params }: { params: Promise<{ slug: string }
   const [error, setError] = useState<string | null>(null);
   const [key, setKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [handle, setHandle] = useState("");
+  const [platform, setPlatform] = useState("instagram");
+  const [checking, setChecking] = useState(false);
+  const [checkMsg, setCheckMsg] = useState<string | null>(null);
+
+  async function runChecks() {
+    if (!key) return;
+    setChecking(true);
+    setCheckMsg(null);
+    try {
+      const res = await fetch(`/api/events/${slug}/checks`, { method: "POST", headers: { "content-type": "application/json", "x-admin-key": key }, body: JSON.stringify(handle.trim() ? { platform, handle } : {}) });
+      const r = (await res.json()) as { errors?: string[] };
+      setCheckMsg(r.errors?.length ? "Some checks didn't finish. Try again in a minute." : "Done. Fans now see the result on your event page.");
+      await load(key);
+    } catch {
+      setCheckMsg("No connection. Try again.");
+    } finally {
+      setChecking(false);
+    }
+  }
 
   async function setDoorCheck(on: boolean) {
     if (!key) return;
@@ -79,6 +99,25 @@ export default function Dashboard({ params }: { params: Promise<{ slug: string }
             <span className="small muted">When on, the scanner asks each guest to scan a Self code with their own passport after their ticket. Only the buyer gets in. No names are shared.</span></span>
         </label>
       )}
+
+      <div className="card stack">
+        <b>Show fans you&apos;re real</b>
+        {data.event.organizerCheck?.found ? (
+          <span className="small"><span className="ok">✓ Checked</span> {data.event.organizerCheck.platform === "instagram" ? "Instagram" : "X"} @{data.event.organizerCheck.handle}{data.event.organizerCheck.followers !== undefined ? ` · ${data.event.organizerCheck.followers} followers` : ""}</span>
+        ) : (
+          <span className="small muted">Add your Instagram or X. Kovenra&apos;s agent looks it up and shows a &quot;Organizer checked&quot; badge on your event page.</span>
+        )}
+        {data.event.payoutChecked && <span className="small">{data.event.payoutChecked.sanctioned ? <span style={{ color: "var(--bad)" }}>Your payout wallet was flagged. Payouts are paused.</span> : <span className="muted">Payout wallet screened: clear</span>}</span>}
+        <div className="row" style={{ flexWrap: "nowrap" }}>
+          <select value={platform} onChange={(e) => setPlatform(e.target.value)} style={{ maxWidth: 130 }}>
+            <option value="instagram">Instagram</option>
+            <option value="x">X</option>
+          </select>
+          <input placeholder="@yourpage" value={handle} onChange={(e) => setHandle(e.target.value)} />
+          <button className="btn btn-sm" disabled={checking} onClick={runChecks}>{checking ? "Checking…" : "Check"}</button>
+        </div>
+        {checkMsg && <span className="small muted">{checkMsg}</span>}
+      </div>
 
       <div className="grid grid-4">
         <div className="card"><div className="stat">{t.sold}<span className="faint small"> / {data.event.capacity}</span></div><div className="stat-label">Tickets sold</div></div>

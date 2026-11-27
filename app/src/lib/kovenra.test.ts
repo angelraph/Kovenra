@@ -10,6 +10,7 @@ import type { GateInput, GateResult, HumanVerifier } from "./selfgate";
 import { settleTicket, type Chain } from "./settle";
 import { MemoryStore, type EventRec } from "./store";
 import { confirmAtDoor, needsDoorCheck } from "./door";
+import { cleanHandle, readProfile } from "./agentbuy";
 import type { FirmQuote } from "./textile";
 import { usdtForNaira } from "./textile";
 import { hashKey, parseTicketCode, ticketCode } from "./tickets";
@@ -500,5 +501,32 @@ describe("friendly errors for fans", () => {
     expect(friendlyError(new Error("TypeError: Failed to fetch"))).toMatch(/connection/);
     expect(friendlyError(new Error("execution reverted: ERC20: transfer amount exceeds balance"))).toMatch(/enough USD₮/);
     expect(friendlyError(new Error("Sold out."))).toBe("Sold out.");
+  });
+});
+
+describe("agent purchases on buy", () => {
+  it("cleans organizer handles from links and @", () => {
+    expect(cleanHandle("@elysianhome")).toBe("elysianhome");
+    expect(cleanHandle("https://www.instagram.com/elysian.home/?hl=en")).toBe("elysian.home");
+    expect(cleanHandle("https://x.com/RaphElevator")).toBe("RaphElevator");
+  });
+
+  it("reads Instagram and X profiles whatever shape the provider returns", () => {
+    const ig = readProfile("instagram", "a", { data: { user: { full_name: "Elysian Home", edge_followed_by: { count: 2300 }, is_verified: false } } });
+    expect(ig).toMatchObject({ found: true, name: "Elysian Home", followers: 2300, verified: false });
+    const x = readProfile("x", "b", { data: { legacy: { name: "Raph", followers_count: 512 }, is_blue_verified: true } });
+    expect(x).toMatchObject({ found: true, followers: 512, verified: true });
+    expect(readProfile("instagram", "c", { error: "user not found" }).found).toBe(false);
+  });
+
+  it("never pays naira to a payout wallet that failed sanctions screening", async () => {
+    const store = new MemoryStore();
+    const e = makeEvent({ payoutCheck: { address: ORGANIZER, sanctioned: true, paymentTx: null, priceUsd: "0.002", checkedAt: new Date().toISOString() } });
+    await store.createEvent(e);
+    const t = { id: "tkt_s", eventId: e.id, nullifier: "1", agentId: "1", buyer: "0xb", paidToken: "USDT" as const, paidAmount: "3000000", paymentTx: "0xpay", status: "valid" as const, settleStatus: "pending" as const, createdAt: new Date().toISOString() };
+    await store.addTicket(t as never, "h_s");
+    const chain = new Proxy({}, { get: () => () => { throw new Error("must not touch the chain"); } });
+    const r = await settleTicket(t as never, { store, chain: chain as never });
+    expect(r.settleStatus).toBe("failed");
   });
 });

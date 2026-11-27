@@ -13,6 +13,7 @@ import { countsAsSeat, getStore, type EventRec, type TicketRec } from "./store";
 import { drawResult, ensureDraw, entryHash, phase as dropPhase } from "./drop";
 import { fairnessReport } from "./report";
 import { confirmAtDoor, needsDoorCheck } from "./door";
+import { checkOrganizer, cleanHandle, screenWallet } from "./agentbuy";
 import { checkSendOrder, createSendOrder } from "./sendpay";
 import { checkAdmin, hashKey, newAdminKey, newId, parseTicketCode, slugify, ticketCode } from "./tickets";
 
@@ -30,6 +31,7 @@ const CreateEvent = z.object({
   minAge: z.coerce.number().int().refine((n) => n === 0 || n === 18 || n === 21, "0, 18 or 21").default(0),
   humansOnly: z.boolean().default(true),
   doorCheck: z.boolean().default(false),
+  organizerSocial: z.object({ platform: z.enum(["instagram", "x"]), handle: z.string().trim().min(1).max(80) }).optional(),
   organizerName: z.string().trim().min(2).max(60),
   payoutAddress: z.string().refine((a) => isAddress(a), "not a wallet address"),
   mode: z.enum(["first-come", "fair-drop"]).default("first-come"),
@@ -54,6 +56,8 @@ export function publicEvent(e: EventRec, sold: number, entries?: number) {
     minAge: e.minAge,
     humansOnly: e.humansOnly,
     doorCheck: Boolean(e.humansOnly && e.doorCheck),
+    organizerCheck: e.organizerCheck ?? null,
+    payoutChecked: e.payoutCheck ? { sanctioned: e.payoutCheck.sanctioned, checkedAt: e.payoutCheck.checkedAt, paymentTx: e.payoutCheck.paymentTx } : null,
     organizerName: e.organizerName,
     mode: e.mode ?? "first-come",
     drop: e.mode === "fair-drop" && e.drop
@@ -70,6 +74,34 @@ export const soldOf = (tickets: TicketRec[]) => tickets.filter(countsAsSeat).len
 
 function settleDeps() {
   return { store: getStore(), chain: liveChain() };
+}
+
+/** The agent's paid checks for one event. Each runs once unless forced; failures never block a sale. */
+export async function runAgentChecks(eventId: string, opts: { force?: boolean } = {}) {
+  const store = getStore();
+  const e = await store.getEvent(eventId);
+  if (!e) return { error: "not_found" };
+  const out: { organizer?: unknown; wallet?: unknown; errors: string[] } = { errors: [] };
+  const social = e.organizerSocial;
+  if (social && (opts.force || !e.organizerCheck || e.organizerCheck.handle !== social.handle)) {
+    try {
+      const organizerCheck = await checkOrganizer(social.platform, social.handle);
+      await store.updateEvent(e.id, { organizerCheck });
+      out.organizer = organizerCheck;
+    } catch (err) {
+      out.errors.push(`organizer: ${(err as Error).message}`);
+    }
+  }
+  if (opts.force || !e.payoutCheck || e.payoutCheck.address.toLowerCase() !== e.payoutAddress.toLowerCase()) {
+    try {
+      const payoutCheck = await screenWallet(e.payoutAddress);
+      await store.updateEvent(e.id, { payoutCheck });
+      out.wallet = payoutCheck;
+    } catch (err) {
+      out.errors.push(`wallet: ${(err as Error).message}`);
+    }
+  }
+  return out;
 }
 
 export function buildApi(defer: Defer) {
@@ -157,6 +189,7 @@ export function buildApi(defer: Defer) {
       minAge: d.minAge,
       humansOnly: d.humansOnly,
       doorCheck: d.humansOnly && d.doorCheck,
+      organizerSocial: d.organizerSocial ? { platform: d.organizerSocial.platform, handle: cleanHandle(d.organizerSocial.handle) } : undefined,
       organizerName: d.organizerName,
       payoutAddress: getAddress(d.payoutAddress),
       adminKeyHash: hashKey(adminKey),
@@ -165,6 +198,8 @@ export function buildApi(defer: Defer) {
       drop,
     };
     await getStore().createEvent(event);
+    // Kovenra's agent pays a few cents on buy to check the organizer and screen the payout wallet.
+    defer(() => runAgentChecks(event.id));
     return c.json({
       slug: event.slug,
       adminKey,
@@ -426,6 +461,20 @@ export function buildApi(defer: Defer) {
     return c.json(r, 200);
   });
 
+  // Run (or re-run) the agent's paid safety checks for an event. Organizer only.
+  app.post("/events/:slug/checks", async (c) => {
+    const store = getStore();
+    const e = await store.getEventBySlug(c.req.param("slug"));
+    if (!e) return c.json({ error: "not_found" }, 404);
+    if (!checkAdmin(e, c.req.header("x-admin-key"))) return c.json({ error: "forbidden" }, 403);
+    const b = (await c.req.json().catch(() => ({}))) as { platform?: string; handle?: string };
+    if (b.handle && (b.platform === "instagram" || b.platform === "x")) {
+      await store.updateEvent(e.id, { organizerSocial: { platform: b.platform, handle: cleanHandle(b.handle) } });
+    }
+    const r = await runAgentChecks(e.id, { force: true });
+    return c.json(r, 200);
+  });
+
   // Organizer settings that can change after launch (today: the VIP door check).
   app.post("/events/:slug/settings", async (c) => {
     const store = getStore();
@@ -437,6 +486,18 @@ export function buildApi(defer: Defer) {
     if (doorCheck && !e.humansOnly) return c.json({ error: "invalid", message: "The door check needs the verified-humans rule." }, 400);
     await store.updateEvent(e.id, { doorCheck });
     return c.json({ doorCheck }, 200);
+  });
+
+  // What Kovenra's agent paid for on buy (organizer checks and wallet screening), with receipts.
+  app.get("/agent-purchases", async (c) => {
+    const events = await getStore().listEvents();
+    const rows: { event: string; service: string; priceUsd: string; paymentTx: string | null; at: string; result: string }[] = [];
+    for (const e of events) {
+      if (e.organizerCheck) rows.push({ event: e.title, service: e.organizerCheck.platform === "instagram" ? "buy · Instagram profile" : "buy · X profile", priceUsd: e.organizerCheck.priceUsd, paymentTx: e.organizerCheck.paymentTx, at: e.organizerCheck.checkedAt, result: e.organizerCheck.found ? `@${e.organizerCheck.handle} found${e.organizerCheck.followers !== undefined ? `, ${e.organizerCheck.followers} followers` : ""}` : `@${e.organizerCheck.handle} not found` });
+      if (e.payoutCheck) rows.push({ event: e.title, service: "buy · OFAC wallet screening", priceUsd: e.payoutCheck.priceUsd, paymentTx: e.payoutCheck.paymentTx, at: e.payoutCheck.checkedAt, result: e.payoutCheck.sanctioned ? "flagged, payouts stopped" : "clear" });
+    }
+    rows.sort((a, b) => b.at.localeCompare(a.at));
+    return c.json({ purchases: rows });
   });
 
   // Public proof: every sale with its on-chain transactions. No personal data.

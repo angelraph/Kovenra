@@ -52,6 +52,17 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
             <span className="pill">{e.sold} of {e.capacity} sold</span>
             {e.mode === "fair-drop" && <span className="pill pill-gold">Fair drop · {e.drop?.entries ?? 0} entered</span>}
           </div>
+          {e.organizerCheck?.found && (
+            <a className="card card-tight small" style={{ marginTop: 12, display: "block" }} href={e.organizerCheck.platform === "instagram" ? `https://instagram.com/${e.organizerCheck.handle}` : `https://x.com/${e.organizerCheck.handle}`} target="_blank" rel="noreferrer">
+              <b className="ok">✓ Organizer checked</b>{" "}
+              <span className="muted">
+                {e.organizerCheck.platform === "instagram" ? "Instagram" : "X"} @{e.organizerCheck.handle}
+                {e.organizerCheck.followers !== undefined && <> · {e.organizerCheck.followers.toLocaleString("en-NG")} followers</>}
+                {e.organizerCheck.verified && <> · verified</>}
+                {" "}· looked up by Kovenra&apos;s agent
+              </span>
+            </a>
+          )}
           <div className="bar"><span style={{ width: `${Math.min(100, (e.sold / e.capacity) * 100)}%` }} /></div>
           {e.description && <p style={{ whiteSpace: "pre-wrap", marginTop: 16, color: "#d4d4d8" }}>{e.description}</p>}
           <div className="card card-tight small muted" style={{ marginTop: 20 }}>

@@ -10,11 +10,17 @@ export default async function Proof() {
   let rows: Awaited<ReturnType<ReturnType<typeof getStore>["allTickets"]>> = [];
   const titles = new Map<string, string>();
   let blocked = 0;
+  const bought: { event: string; service: string; priceUsd: string; paymentTx: string | null; at: string; result: string }[] = [];
   try {
     const store = getStore();
     rows = await store.allTickets(300);
     for (const t of rows) if (!titles.has(t.eventId)) titles.set(t.eventId, (await store.getEvent(t.eventId))?.title ?? "");
-    for (const e of await store.listEvents(500)) blocked += (await store.rejections(e.id)).length;
+    for (const e of await store.listEvents(500)) {
+      blocked += (await store.rejections(e.id)).length;
+      if (e.organizerCheck) bought.push({ event: e.title, service: e.organizerCheck.platform === "instagram" ? "Instagram profile check" : "X profile check", priceUsd: e.organizerCheck.priceUsd, paymentTx: e.organizerCheck.paymentTx, at: e.organizerCheck.checkedAt, result: e.organizerCheck.found ? `@${e.organizerCheck.handle} is real` : `@${e.organizerCheck.handle} not found` });
+      if (e.payoutCheck) bought.push({ event: e.title, service: "Payout wallet sanctions check", priceUsd: e.payoutCheck.priceUsd, paymentTx: e.payoutCheck.paymentTx, at: e.payoutCheck.checkedAt, result: e.payoutCheck.sanctioned ? "flagged, payouts stopped" : "clear" });
+    }
+    bought.sort((a, b) => b.at.localeCompare(a.at));
   } catch {}
   const ngn = rows.reduce((s, t) => s + BigInt(t.ngnDelivered ?? (t.paidToken === "CNGN" ? t.paidAmount : "0")), 0n);
 
@@ -44,6 +50,22 @@ export default async function Proof() {
             ))}
           </div>
         </Reveal>
+        {bought.length > 0 && (
+          <Reveal>
+            <h2 style={{ marginTop: 48 }}>What Kovenra&apos;s agent pays for</h2>
+            <p className="muted" style={{ marginTop: 8 }}>The agent buys its own safety checks on buy, Celo&apos;s agent marketplace, paying a fraction of a cent each over x402 from its own wallet.</p>
+            <div className="list" style={{ marginTop: 18 }}>
+              {bought.map((b) => (
+                <div className="list-row" key={`${b.service}-${b.at}`}>
+                  <span style={{ fontWeight: 600 }}>{b.service}</span>
+                  <span className="small muted">{b.event}</span>
+                  <span className="small">{b.result} · ${b.priceUsd}</span>
+                  <span className="small">{b.paymentTx ? <a className="gold" href={celoscanTx(b.paymentTx)} target="_blank" rel="noreferrer">receipt ↗</a> : <span className="faint">receipt pending</span>}</span>
+                </div>
+              ))}
+            </div>
+          </Reveal>
+        )}
         <p className="small faint" style={{ marginTop: 14 }}>Every conversion and payout Kovenra sends carries our ERC-8021 attribution tag, so you can find them all on Celoscan. The buyer&apos;s payment itself is sent by Celo&apos;s x402 service, not by Kovenra, so it doesn&apos;t carry our tag.</p>
       </section>
     </>

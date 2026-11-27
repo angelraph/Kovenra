@@ -68,6 +68,7 @@ export default function NewEvent() {
       entryClosesAt: fairDrop ? `${closeDate}T${closeTime || "12:00"}:00+01:00` : undefined,
       claimMinutes: Number(claimMinutes),
       organizerName: f.get("organizer"),
+      organizerSocial: String(f.get("social") ?? "").trim() ? { platform: String(f.get("socialPlatform") ?? "instagram"), handle: String(f.get("social")).trim() } : undefined,
       payoutAddress: String(f.get("payout") ?? "").trim(),
     };
     try {
@@ -185,6 +186,17 @@ export default function NewEvent() {
                 <label htmlFor="organizer">Organizer name</label>
                 <input id="organizer" name="organizer" required placeholder="Your name or brand" />
               </div>
+            </div>
+            <div className="field" style={{ marginTop: 16 }}>
+              <label htmlFor="social">Your Instagram or X <span className="muted">(optional, recommended)</span></label>
+              <div className="row" style={{ flexWrap: "nowrap" }}>
+                <select name="socialPlatform" defaultValue="instagram" style={{ maxWidth: 140 }}>
+                  <option value="instagram">Instagram</option>
+                  <option value="x">X</option>
+                </select>
+                <input id="social" name="social" placeholder="@yourpage" />
+              </div>
+              <div className="hint">Kovenra&apos;s agent looks up your public page and shows fans it&apos;s real, so they know the event isn&apos;t a scam.</div>
             </div>
             <div className="field" style={{ marginTop: 16 }}>
               <label htmlFor="payout">Your Celo wallet (where the naira goes)</label>

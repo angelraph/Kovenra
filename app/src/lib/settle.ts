@@ -107,6 +107,10 @@ async function doSettle(ticket: TicketRec, deps: SettleDeps): Promise<TicketRec>
 
   const event = await store.getEvent(fresh.eventId);
   if (!event) throw new Error("event not found");
+  if (event.payoutCheck?.sanctioned && event.payoutCheck.address.toLowerCase() === event.payoutAddress.toLowerCase()) {
+    await store.updateTicket(fresh.id, { settleStatus: "failed", settleError: "Payout wallet is on the OFAC sanctions list" });
+    return { ...fresh, settleStatus: "failed" };
+  }
 
   await store.updateTicket(fresh.id, { settleStatus: "converting", settleError: undefined });
   try {

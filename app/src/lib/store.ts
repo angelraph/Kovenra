@@ -25,6 +25,11 @@ export interface EventRec {
   drop?: DropInfo;
   /** VIP door check: at the gate the guest re-proves with Self and the passport must match the buyer's. Needs humansOnly. */
   doorCheck?: boolean;
+  /** Organizer's public Instagram or X account, checked by Kovenra's agent through buy. */
+  organizerSocial?: { platform: "instagram" | "x"; handle: string };
+  organizerCheck?: import("./agentbuy").OrganizerCheck;
+  /** OFAC screening of the payout wallet, paid by Kovenra's agent through buy. */
+  payoutCheck?: import("./agentbuy").WalletCheck;
 }
 
 export interface DropInfo {
