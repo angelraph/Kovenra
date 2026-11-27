@@ -68,8 +68,10 @@ async function main() {
   }
 
   // 3. Verified person's agent
+  // Buyer 3 and 4 must belong to the same human. demo-1 + demo-2 is the usual pair; if only demo-1
+  // exists, Kovenra's own agent (registered with the same passport) works as the second one.
   const a1 = readAgent("demo-1") ?? readAgent("kovenra");
-  const a2 = readAgent("demo-2");
+  const a2 = readAgent("demo-2") ?? (readAgent("demo-1") ? readAgent("kovenra") : null);
   if (!a1) {
     note('Buyer 3 skipped: register one with "npm run agent:register -- --name demo-1".');
   } else {
