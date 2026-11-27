@@ -36,6 +36,8 @@ export class SelfHumanVerifier implements HumanVerifier {
       maxAgentsPerHuman: env.selfMaxAgentsPerHuman,
       includeCredentials: true,
       requireSelfProvider: true,
+      // A fan who just verified in Self must be served within seconds, not after a 60s cached "no".
+      cacheTtlMs: 3_000,
     });
   }
 

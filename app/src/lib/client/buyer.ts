@@ -68,6 +68,17 @@ export async function agentStatus(): Promise<{ address: string; verified: boolea
   }
 }
 
+/** After Self says "Proof Verified", wait until Celo's registry confirms it (usually a few seconds). */
+export async function waitUntilVerified(timeoutMs = 90_000): Promise<boolean> {
+  const until = Date.now() + timeoutMs;
+  while (Date.now() < until) {
+    const s = await agentStatus();
+    if (s?.verified) return true;
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  return false;
+}
+
 /** Start Self registration. Returns the link/QR to show; resolves `done` once the passport scan completes. */
 export async function startVerification(minAge: number) {
   const session = await requestRegistration({

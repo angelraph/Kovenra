@@ -71,6 +71,7 @@ export default function BuyPanel(p: Props) {
   const [hasWallet, setHasWallet] = useState(true);
   const [inMiniPay, setInMiniPay] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     const eth = (window as unknown as { ethereum?: { isMiniPay?: boolean } }).ethereum;
@@ -156,8 +157,11 @@ export default function BuyPanel(p: Props) {
       setLink({ deepLink: s.deepLink, qr: s.qr });
       // Open the Self app directly (its own app link), so this page stays put and keeps waiting.
       await s.done;
-      setVerified(true);
       setLink(null);
+      setConfirming(true);
+      await (await lib()).waitUntilVerified();
+      setConfirming(false);
+      setVerified(true);
       await next();
     } catch (e) {
       setError(friendlyError(e, "Verification didn't finish. Please tap Verify with Self again."));
@@ -186,7 +190,13 @@ export default function BuyPanel(p: Props) {
     setError(null);
     setStep("paying");
     try {
-      const r = await (await lib()).buyTicket(p.slug, buyer, price + price / 100n); // allow the 1% rate move the server accepts
+      const b = await lib();
+      let r = await b.buyTicket(p.slug, buyer, price + price / 100n); // allow the 1% rate move the server accepts
+      // A proof that landed seconds ago may not be visible to the server yet: wait and try again.
+      for (let i = 0; i < 6 && r.status === 403 && r.body.reason === "not_verified"; i++) {
+        await new Promise((res) => setTimeout(res, 5000));
+        r = await b.buyTicket(p.slug, buyer, price + price / 100n);
+      }
       if (r.ok && r.body.ticket?.id) {
         try {
           const mine = JSON.parse(localStorage.getItem("kovenra:tickets") ?? "[]");
@@ -202,7 +212,6 @@ export default function BuyPanel(p: Props) {
         r.status === 409 ? "Sold out." :
         r.status === 402 ? `Payment didn't go through${r.body.error ? ` (${r.body.error})` : ""}. Nothing was charged.` :
         r.body.message ?? `Something went wrong (${r.status}).`;
-      if (r.status === 403 && r.body.reason === "not_verified") setVerified(false);
       setError(msg);
       setStep("confirm");
     } catch (e) {
@@ -284,9 +293,11 @@ export default function BuyPanel(p: Props) {
                 <img src={link.qr} alt="Scan with the Self app" style={{ width: 220, height: 220, margin: "0 auto", background: "#fff", borderRadius: 12, padding: 8 }} />
               )}
               {link && inMiniPay && (
-                <div className="notice" style={{ textAlign: "left" }}>
-                  <a className="btn btn-block" href={selfAppLink(link.deepLink)} style={{ marginBottom: 12 }}>Open Self</a>
-                  <b>Self didn&apos;t open? Do this instead:</b>
+                <div style={{ textAlign: "left" }}>
+                  <a className="btn btn-block" href={selfAppLink(link.deepLink)} style={{ fontSize: 17, padding: "16px 20px" }}>Open Self</a>
+                  <p className="small faint" style={{ marginTop: 10, textAlign: "center" }}>Tap <b>Approve</b> in Self, then come back here. This page moves on by itself.</p>
+                  <details className="notice" style={{ marginTop: 12 }}>
+                  <summary className="small" style={{ cursor: "pointer" }}>Self didn&apos;t open?</summary>
                   <ol className="small muted" style={{ margin: "8px 0 0 18px", lineHeight: 1.7 }}>
                     <li>Tap <b>Copy Self link</b> below</li>
                     <li>Open <b>Chrome</b>, paste it in the address bar and go</li>
@@ -301,6 +312,7 @@ export default function BuyPanel(p: Props) {
                   >
                     {copied ? "Link copied ✓ Now paste it in Chrome" : "Copy Self link"}
                   </button>
+                  </details>
                 </div>
               )}
               {link && !inMiniPay && (
@@ -327,6 +339,7 @@ export default function BuyPanel(p: Props) {
         </div>
       )}
 
+      {confirming && <div className="notice notice-good"><span className="spinner" /> Self says you&apos;re verified. Confirming it on Celo, a few seconds…</div>}
       {step === "wallet" && <div className="row"><span className="spinner" /> <span className="muted">Connecting your wallet…</span></div>}
 
       {(step === "confirm" || step === "paying") && (
