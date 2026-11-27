@@ -27,26 +27,28 @@ type Step = "send" | "idle" | "verify" | "verifying" | "wallet" | "confirm" | "p
 
 const when = (iso: string) => new Date(iso).toLocaleString("en-NG", { weekday: "short", hour: "numeric", minute: "2-digit", day: "numeric", month: "short", timeZone: "Africa/Lagos" });
 
-/**
- * Open the Self app. Inside wallet browsers (MiniPay) a plain https link to redirect.self.xyz
- * goes to the Play Store, so use the same app links Self's own redirect page uses:
- * an Android intent with the app's package, or the proofofpassport:// scheme on iPhone.
- */
-function openSelfApp(deepLink: string) {
+/** The Self app's own link (Android intent or iOS scheme), for a real tap on an <a>. */
+function selfAppLink(deepLink: string) {
   let query = "";
   try {
     query = new URL(deepLink).search;
   } catch {
     query = deepLink.includes("?") ? deepLink.slice(deepLink.indexOf("?")) : "";
   }
-  const ua = navigator.userAgent;
-  if (/Android/i.test(ua)) {
-    window.location.href = `intent://open-passport${query}#Intent;scheme=proofofpassport;package=com.proofofpassportapp;end`;
-  } else if (/iPhone|iPad|iPod/i.test(ua)) {
-    window.location.href = `proofofpassport://open-passport${query}`;
-  } else {
-    window.open(deepLink, "_blank", "noopener");
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent)
+    ? `proofofpassport://open-passport${query}`
+    : `intent://open-passport${query}#Intent;scheme=proofofpassport;package=com.proofofpassportapp;end`;
+}
+
+/** Our own tap-to-open page for Self (see app/open-self), carrying Self's request. */
+function openSelfUrl(deepLink: string) {
+  let query = "";
+  try {
+    query = new URL(deepLink).search;
+  } catch {
+    query = deepLink.includes("?") ? deepLink.slice(deepLink.indexOf("?")) : "";
   }
+  return `${window.location.origin}/open-self${query}`;
 }
 
 function toUnits6(s: string): bigint {
@@ -66,7 +68,6 @@ export default function BuyPanel(p: Props) {
   const [hasWallet, setHasWallet] = useState(true);
   const [inMiniPay, setInMiniPay] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [qrCopied, setQrCopied] = useState(false);
 
   useEffect(() => {
     const eth = (window as unknown as { ethereum?: { isMiniPay?: boolean } }).ethereum;
@@ -151,7 +152,6 @@ export default function BuyPanel(p: Props) {
       const s = await (await lib()).startVerification(p.minAge);
       setLink({ deepLink: s.deepLink, qr: s.qr });
       // Open the Self app directly (its own app link), so this page stays put and keeps waiting.
-      if (mobile && !inMiniPay) openSelfApp(s.deepLink);
       await s.done;
       setVerified(true);
       setLink(null);
@@ -282,53 +282,35 @@ export default function BuyPanel(p: Props) {
               )}
               {link && inMiniPay && (
                 <div className="notice" style={{ textAlign: "left" }}>
-                  <b>MiniPay can&apos;t open Self by itself. Do this:</b>
+                  <a className="btn btn-block" href={selfAppLink(link.deepLink)} style={{ marginBottom: 12 }}>Open Self</a>
+                  <b>Self didn&apos;t open? Do this instead:</b>
                   <ol className="small muted" style={{ margin: "8px 0 0 18px", lineHeight: 1.7 }}>
                     <li>Tap <b>Copy Self link</b> below</li>
                     <li>Open <b>Chrome</b>, paste it in the address bar and go</li>
-                    <li>Self opens. Tap <b>Approve</b></li>
+                    <li>Tap the big <b>Open Self</b> button, then <b>Approve</b> in Self</li>
                     <li>Come back to MiniPay. This page moves on by itself</li>
                   </ol>
                   <button
                     className="btn btn-block"
                     type="button"
                     style={{ marginTop: 10 }}
-                    onClick={() => navigator.clipboard?.writeText(link.deepLink).then(() => setCopied(true)).catch(() => setCopied(false))}
+                    onClick={() => navigator.clipboard?.writeText(openSelfUrl(link.deepLink)).then(() => setCopied(true)).catch(() => setCopied(false))}
                   >
                     {copied ? "Link copied ✓ Now paste it in Chrome" : "Copy Self link"}
                   </button>
                 </div>
               )}
-              {link?.qr && mobile && (
-                <div className="notice" style={{ textAlign: "left" }}>
-                  <b>Self still not opening? Scan instead</b>
-                  <ol className="small muted" style={{ margin: "8px 0 0 18px", lineHeight: 1.7 }}>
-                    <li>Tap <b>Copy QR link</b></li>
-                    <li>Open it on <b>another screen</b>: a laptop, or a friend&apos;s phone (send it on WhatsApp)</li>
-                    <li>On <b>your</b> phone, open Self and tap <b>Scan</b>, then scan that QR</li>
-                    <li>Come back here. This page moves on by itself</li>
-                  </ol>
-                  <button
-                    className="btn btn-ghost btn-block"
-                    type="button"
-                    style={{ marginTop: 10 }}
-                    onClick={() => navigator.clipboard?.writeText(link.qr!).then(() => setQrCopied(true)).catch(() => setQrCopied(false))}
-                  >
-                    {qrCopied ? "QR link copied ✓" : "Copy QR link"}
-                  </button>
-                </div>
-              )}
               {link && !inMiniPay && (
-                <button className="btn btn-block" type="button" onClick={() => openSelfApp(link.deepLink)}>Open the Self app</button>
+                <a className="btn btn-block" href={mobile ? selfAppLink(link.deepLink) : link.deepLink} target={mobile ? undefined : "_blank"} rel="noopener noreferrer">Open the Self app</a>
               )}
               {link && mobile && !inMiniPay && (
                 <div className="notice" style={{ textAlign: "left" }}>
-                  <p className="small muted">Self didn&apos;t open? Copy this link, paste it into Chrome (or Safari), open it, and Self will open. Then come back to this page.</p>
+                  <p className="small muted">Self didn&apos;t open? Copy this link, paste it into Chrome (or Safari), tap Open Self there and approve. Then come back to this page.</p>
                   <button
                     className="btn btn-ghost btn-block"
                     type="button"
                     style={{ marginTop: 8 }}
-                    onClick={() => navigator.clipboard?.writeText(link.deepLink).then(() => setCopied(true)).catch(() => setCopied(false))}
+                    onClick={() => navigator.clipboard?.writeText(openSelfUrl(link.deepLink)).then(() => setCopied(true)).catch(() => setCopied(false))}
                   >
                     {copied ? "Link copied" : "Copy Self link"}
                   </button>
