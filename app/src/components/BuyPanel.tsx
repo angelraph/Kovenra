@@ -66,6 +66,7 @@ export default function BuyPanel(p: Props) {
   const [hasWallet, setHasWallet] = useState(true);
   const [inMiniPay, setInMiniPay] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [qrCopied, setQrCopied] = useState(false);
 
   useEffect(() => {
     const eth = (window as unknown as { ethereum?: { isMiniPay?: boolean } }).ethereum;
@@ -295,6 +296,25 @@ export default function BuyPanel(p: Props) {
                     onClick={() => navigator.clipboard?.writeText(link.deepLink).then(() => setCopied(true)).catch(() => setCopied(false))}
                   >
                     {copied ? "Link copied ✓ Now paste it in Chrome" : "Copy Self link"}
+                  </button>
+                </div>
+              )}
+              {link?.qr && mobile && (
+                <div className="notice" style={{ textAlign: "left" }}>
+                  <b>Self still not opening? Scan instead</b>
+                  <ol className="small muted" style={{ margin: "8px 0 0 18px", lineHeight: 1.7 }}>
+                    <li>Tap <b>Copy QR link</b></li>
+                    <li>Open it on <b>another screen</b>: a laptop, or a friend&apos;s phone (send it on WhatsApp)</li>
+                    <li>On <b>your</b> phone, open Self and tap <b>Scan</b>, then scan that QR</li>
+                    <li>Come back here. This page moves on by itself</li>
+                  </ol>
+                  <button
+                    className="btn btn-ghost btn-block"
+                    type="button"
+                    style={{ marginTop: 10 }}
+                    onClick={() => navigator.clipboard?.writeText(link.qr!).then(() => setQrCopied(true)).catch(() => setQrCopied(false))}
+                  >
+                    {qrCopied ? "QR link copied ✓" : "Copy QR link"}
                   </button>
                 </div>
               )}
