@@ -19,10 +19,10 @@ export default function Contact() {
             </a>
           </Reveal>
           <Reveal delay={0.06}>
-            <a className="card" href="https://x.com/Celo" target="_blank" rel="noreferrer" style={{ display: "block", height: "100%", padding: 26 }}>
+            <a className="card" href="https://x.com/RaphElevator" target="_blank" rel="noreferrer" style={{ display: "block", height: "100%", padding: 26 }}>
               <XLogo size={22} />
               <h3 style={{ marginTop: 16 }}>Find us on X</h3>
-              <p className="muted" style={{ marginTop: 8 }}>Follow along with the Celo community, where we share updates.</p>
+              <p className="muted" style={{ marginTop: 8 }}>Message the founder, @RaphElevator, for questions, partnerships or to list your event.</p>
             </a>
           </Reveal>
           <Reveal delay={0.12}>

@@ -44,7 +44,7 @@ export default function SiteFooter() {
               </p>
               <div className="socials">
                 <a href="https://github.com/angelraph/Kovenra" target="_blank" rel="noreferrer" aria-label="Kovenra on GitHub"><Github /></a>
-                <a href="https://x.com/Celo" target="_blank" rel="noreferrer" aria-label="Celo on X"><XLogo /></a>
+                <a href="https://x.com/RaphElevator" target="_blank" rel="noreferrer" aria-label="Kovenra founder on X"><XLogo /></a>
               </div>
             </div>
             {COLS.map((c) => (
