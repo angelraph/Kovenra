@@ -76,7 +76,23 @@ export async function startVerification(minAge: number) {
     disclosures: minAge > 0 ? { minimumAge: minAge } : {},
   });
   const done = (async () => {
-    const result = await session.waitForCompletion({ timeoutMs: 15 * 60_000 });
+    // Self can take a while (first passport scans especially). Keep waiting up to 30 minutes in
+    // 10-minute rounds; the SDK says the session stays active across rounds.
+    let result: Awaited<ReturnType<typeof session.waitForCompletion>> | undefined;
+    for (let round = 0; round < 3 && !result; round++) {
+      try {
+        result = await session.waitForCompletion({ timeoutMs: 10 * 60_000 });
+      } catch (e) {
+        if (!/did not complete|timed? ?out/i.test((e as Error).message) || round === 2) {
+          throw new Error(
+            /did not complete|timed? ?out/i.test((e as Error).message)
+              ? "Self didn't confirm in time. Open the Self app to check it finished, then tap Verify with Self again."
+              : "Verification didn't finish. Please tap Verify with Self again.",
+          );
+        }
+      }
+    }
+    if (!result) throw new Error("Verification didn't finish. Please tap Verify with Self again.");
     const key = await session.exportKey();
     localStorage.setItem(AGENT_KEY, key);
     return result;
