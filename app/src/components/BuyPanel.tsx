@@ -125,7 +125,8 @@ export default function BuyPanel(p: Props) {
     try {
       const s = await (await lib()).startVerification(p.minAge);
       setLink({ deepLink: s.deepLink, qr: s.qr });
-      if (mobile) window.location.href = s.deepLink;
+      // Open Self in a new window so this page stays alive and keeps waiting for the proof.
+      if (mobile) window.open(s.deepLink, "_blank", "noopener");
       await s.done;
       setVerified(true);
       setLink(null);
@@ -255,8 +256,9 @@ export default function BuyPanel(p: Props) {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={link.qr} alt="Scan with the Self app" style={{ width: 220, height: 220, margin: "0 auto", background: "#fff", borderRadius: 12, padding: 8 }} />
               )}
-              {link && <a className="btn btn-ghost btn-block" href={link.deepLink}>Open the Self app</a>}
+              {link && <a className="btn btn-ghost btn-block" href={link.deepLink} target="_blank" rel="noopener noreferrer">Open the Self app</a>}
               <div className="row" style={{ justifyContent: "center" }}><span className="spinner" /> <span className="muted small">Waiting for your scan…</span></div>
+              <p className="small faint">After Self says you&apos;re verified, come back to this page. Don&apos;t close or refresh it; your ticket step opens here on its own.</p>
               <a className="small muted" href="/verify" target="_blank" rel="noreferrer">First time? See the 2-minute guide</a>
             </div>
           )}
