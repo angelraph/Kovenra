@@ -39,9 +39,16 @@ const SELF_HELP = "https://docs.self.xyz/agent-id/quickstart";
 let rateCache: { v: string; at: number } | null = null;
 export async function liveRate(): Promise<string> {
   if (rateCache && Date.now() - rateCache.at < 30_000) return rateCache.v;
-  const t = await getUsdtNgn();
-  rateCache = { v: t.ask && Number(t.ask) > 0 ? t.ask : t.last_price, at: Date.now() };
-  return rateCache.v;
+  const fresh = getUsdtNgn().then((t) => {
+    rateCache = { v: t.ask && Number(t.ask) > 0 ? t.ask : t.last_price, at: Date.now() };
+    return rateCache.v;
+  });
+  // If Textile is slow and we have a recent rate (under 5 minutes), use it rather than make the fan wait.
+  if (rateCache && Date.now() - rateCache.at < 5 * 60_000) {
+    const stale = rateCache.v;
+    return Promise.race([fresh, new Promise<string>((r) => setTimeout(() => r(stale), 2500))]).catch(() => stale);
+  }
+  return fresh;
 }
 
 export async function priceFor(event: EventRec, rate: string) {

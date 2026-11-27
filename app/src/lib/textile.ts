@@ -47,7 +47,8 @@ export class TextileError extends Error {
 
 /** NGN per USD₮ from the public feed. `ask` is what a USD₮ seller gets per unit. */
 export async function getUsdtNgn(fetcher: FetchLike = fetch): Promise<Ticker> {
-  const res = await fetcher(`${TEXTILE_API}/tickers?ticker_id=USDT_NGN`, { cache: "no-store" });
+  // Shared 30s cache across server instances (Next data cache), so a cold page never waits on Textile.
+  const res = await fetcher(`${TEXTILE_API}/tickers?ticker_id=USDT_NGN`, { next: { revalidate: 30 } } as RequestInit);
   if (!res.ok) throw new TextileError(`ticker ${res.status}`, "ticker_failed", res.status);
   const rows = (await res.json()) as Ticker[];
   if (!rows[0]) throw new TextileError("no USDT_NGN ticker", "ticker_missing");

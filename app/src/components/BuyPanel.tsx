@@ -35,17 +35,19 @@ export default function BuyPanel(p: Props) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [verified, setVerified] = useState<boolean | null>(null);
+  const [, setVerified] = useState<boolean | null>(null);
   const [link, setLink] = useState<{ deepLink: string; qr: string | null } | null>(null);
   const [buyer, setBuyer] = useState<Address | null>(null);
   const [balance, setBalance] = useState<bigint | null>(null);
   const [mobile, setMobile] = useState(false);
   const [hasWallet, setHasWallet] = useState(true);
+  const [inMiniPay, setInMiniPay] = useState(false);
 
   useEffect(() => {
     const eth = (window as unknown as { ethereum?: { isMiniPay?: boolean } }).ethereum;
     setMobile(/Android|iPhone|iPad/i.test(navigator.userAgent) || Boolean(eth?.isMiniPay));
     setHasWallet(Boolean(eth));
+    setInMiniPay(Boolean(eth?.isMiniPay));
     // Inside MiniPay the wallet connects on its own, no button (MiniPay's listing rule).
     if (eth?.isMiniPay) {
       lib()
@@ -228,7 +230,7 @@ export default function BuyPanel(p: Props) {
       {step === "idle" && (
         <>
           <button className="btn btn-block" onClick={begin} disabled={!price || ph === "drawing"}>{idleLabel}</button>
-          {canSend && price && !step.startsWith("send") && (
+          {canSend && price && !inMiniPay && !step.startsWith("send") && (
             <button className="btn btn-ghost btn-block" onClick={() => setStep("send")}>Pay by sending from another wallet</button>
           )}
         </>
