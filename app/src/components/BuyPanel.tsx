@@ -27,6 +27,29 @@ type Step = "send" | "idle" | "verify" | "verifying" | "wallet" | "confirm" | "p
 
 const when = (iso: string) => new Date(iso).toLocaleString("en-NG", { weekday: "short", hour: "numeric", minute: "2-digit", day: "numeric", month: "short", timeZone: "Africa/Lagos" });
 
+/**
+ * Open the Self app. Inside wallet browsers (MiniPay) a plain https link to redirect.self.xyz
+ * goes to the Play Store, so use the same app links Self's own redirect page uses:
+ * an Android intent with the app's package, or the proofofpassport:// scheme on iPhone.
+ */
+function openSelfApp(deepLink: string) {
+  let query = "";
+  try {
+    query = new URL(deepLink).search;
+  } catch {
+    query = deepLink.includes("?") ? deepLink.slice(deepLink.indexOf("?")) : "";
+  }
+  const ua = navigator.userAgent;
+  if (/Android/i.test(ua)) {
+    const fallback = encodeURIComponent("https://play.google.com/store/apps/details?id=com.proofofpassportapp");
+    window.location.href = `intent://open-passport${query}#Intent;scheme=proofofpassport;package=com.proofofpassportapp;S.browser_fallback_url=${fallback};end`;
+  } else if (/iPhone|iPad|iPod/i.test(ua)) {
+    window.location.href = `proofofpassport://open-passport${query}`;
+  } else {
+    window.open(deepLink, "_blank", "noopener");
+  }
+}
+
 function toUnits6(s: string): bigint {
   const [w, f = ""] = s.split(".");
   return BigInt(w) * 1_000_000n + BigInt((f + "000000").slice(0, 6));
@@ -43,6 +66,7 @@ export default function BuyPanel(p: Props) {
   const [mobile, setMobile] = useState(false);
   const [hasWallet, setHasWallet] = useState(true);
   const [inMiniPay, setInMiniPay] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const eth = (window as unknown as { ethereum?: { isMiniPay?: boolean } }).ethereum;
@@ -126,8 +150,8 @@ export default function BuyPanel(p: Props) {
     try {
       const s = await (await lib()).startVerification(p.minAge);
       setLink({ deepLink: s.deepLink, qr: s.qr });
-      // Open Self in a new window so this page stays alive and keeps waiting for the proof.
-      if (mobile) window.open(s.deepLink, "_blank", "noopener");
+      // Open the Self app directly (its own app link), so this page stays put and keeps waiting.
+      if (mobile) openSelfApp(s.deepLink);
       await s.done;
       setVerified(true);
       setLink(null);
@@ -256,7 +280,22 @@ export default function BuyPanel(p: Props) {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={link.qr} alt="Scan with the Self app" style={{ width: 220, height: 220, margin: "0 auto", background: "#fff", borderRadius: 12, padding: 8 }} />
               )}
-              {link && <a className="btn btn-ghost btn-block" href={link.deepLink} target="_blank" rel="noopener noreferrer">Open the Self app</a>}
+              {link && (
+                <button className="btn btn-block" type="button" onClick={() => openSelfApp(link.deepLink)}>Open the Self app</button>
+              )}
+              {link && mobile && (
+                <div className="notice" style={{ textAlign: "left" }}>
+                  <p className="small muted">Self didn&apos;t open? Copy this link, paste it into Chrome (or Safari), open it, and Self will open. Then come back to this page.</p>
+                  <button
+                    className="btn btn-ghost btn-block"
+                    type="button"
+                    style={{ marginTop: 8 }}
+                    onClick={() => navigator.clipboard?.writeText(link.deepLink).then(() => setCopied(true)).catch(() => setCopied(false))}
+                  >
+                    {copied ? "Link copied" : "Copy Self link"}
+                  </button>
+                </div>
+              )}
               <div className="row" style={{ justifyContent: "center" }}><span className="spinner" /> <span className="muted small">Waiting for your scan…</span></div>
               <p className="small faint">After Self says you&apos;re verified, come back to this page. Don&apos;t close or refresh it; your ticket step opens here on its own.</p>
               <a className="small muted" href="/verify" target="_blank" rel="noreferrer">First time? See the 2-minute guide</a>
