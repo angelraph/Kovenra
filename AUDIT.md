@@ -12,9 +12,10 @@ What we checked before submitting, what we fixed, and what is still a known limi
 | Self gate on mainnet | Ran the demo buyers against the live counter | 403 / 403 / 402 / 429 as designed |
 | Organizer dashboard | Called the admin API with and without the key | Opens with the right key, 403 with a wrong one |
 | Door scanner | Sent a forged ticket code | Rejected: "Not a Kovenra ticket" |
+| VIP door check | Called door-confirm on the live Eleven Stars event without a Self proof, and without the organizer key | "Self could not confirm the passport" (ticket untouched); 403 without the key. Unit tests: same passport gets in once, a different passport is turned away |
 | Every page and API | Requested all 30+ pages and the public API endpoints | All return 200; unknown pages 404 |
 | Settlement wallet | Read its balances | Enough CELO for gas; no USD₮ left sitting in it |
-| Build and tests | `next build`, `tsc`, lint, 28 unit tests | All pass |
+| Build and tests | `next build`, `tsc`, lint, 32 unit tests | All pass |
 
 ## Fixed during the hackathon
 

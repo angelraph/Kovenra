@@ -22,9 +22,9 @@ Built for the Celo **Agents Open for Business** hackathon (Loops House), Stablec
 | **x402** | Fans and agents pay over x402 through Celo's facilitator. PayTo: `0x617B…184Fb` |
 | **Identity** | ERC-8004 agent **#10137**. Self Agent ID **#223** (verified, passport strength). Demo agent #224 |
 | **Self Agent ID in the product** | Verified-humans events refuse unsigned or unverified buyers (403) and count tickets per human, so a person's second agent gets 429. [Live proof](docs/self-agent-id-proof.md) |
-| **Fairness** | Fair Drop (a draw seeded by a Celo block hash), resale only at face value, a public fairness report for every event, QR tickets that check in once |
+| **Fairness** | Fair Drop (a draw seeded by a Celo block hash), resale only at face value, a public fairness report for every event, QR tickets that check in once, and an optional VIP door check where the guest re-proves with their own passport |
 | **App** | Landing page with live chain data, events, event pages, organizer dashboard and door scanner, plus 15 more pages; built for phones; works in MiniPay |
-| **Tests** | 28 unit tests (ticket counter, per-human limits, settlement, tags, Fair Drop, resale, send-to-pay, fairness report, friendly errors) |
+| **Tests** | 32 unit tests (ticket counter, per-human limits, settlement, tags, Fair Drop, resale, send-to-pay, fairness report, friendly errors) |
 
 ## Contents
 
@@ -133,7 +133,7 @@ The buyers are the organizers' real audiences paying from their own phone wallet
 3. **A seat is held for that person.** Seats are counted per human, so a second agent of the same person hits the limit (429).
 4. **They pay over x402**, settled by Celo's facilitator to Kovenra's PayTo, before any ticket is written.
 5. **Kovenra converts and pays out.** A Textile FX RFQ quote for exactly the USD₮ received, a tagged swap, then a tagged cNGN transfer to the organizer's own wallet. A cron job retries any payout that fails.
-6. **QR at the door.** A signed code that checks in once on the organizer's phone.
+6. **QR at the door.** A signed code that checks in once on the organizer's phone. With the VIP door check on, the guest then scans a Self code with their own passport, and only the buyer gets in.
 
 ## Self Agent ID: one person, one seat
 
@@ -148,6 +148,10 @@ Live run on Celo mainnet, 2026-11-27, against the verified-humans counter for El
 | A real member, Self Agent ID #226 | **200**, paid 3.49 USD₮ over x402 and got a ticket |
 
 Code: [`purchase.ts#L90`](app/src/lib/purchase.ts#L90) (gate), [`selfgate.ts#L42`](app/src/lib/selfgate.ts#L42) (SelfAgentVerifier against the registry), [`store.ts`](app/src/lib/store.ts) (`hold`: per-human seats). Full write-up: [docs/self-agent-id-proof.md](docs/self-agent-id-proof.md). Fans verify in the browser with the Self app; inside MiniPay the page gives a copy-to-Chrome step, because MiniPay's browser can't open other apps.
+
+### VIP door check
+
+A ticket QR can be screenshotted, and a phone can be stolen. On events with the door check on, a valid QR is not enough. The scanner shows a fresh Self code, the guest scans it with their own Self app and passport, and Kovenra compares the new proof's Self nullifier with the one stored on the ticket when it was bought. Same passport: "Welcome in". Different passport: "Wrong person, do not let them in". Kovenra never sees a name, it only compares two anonymous numbers. Organizers switch it on when they create an event or from their dashboard. Live on Eleven Stars VIP Summit. Code: [`door.ts`](app/src/lib/door.ts), the `/checkin` and `/door-confirm` routes in [`api.ts`](app/src/lib/api.ts).
 
 ## Fair Drop, resale and the fairness report
 
@@ -175,6 +179,7 @@ Fan / AI agent ──(Self Agent ID signature + x402)──▶ kovenra.xyz/api  
 | Textile FX conversion and payout | `app/src/lib/textile.ts`, `app/src/lib/settle.ts` |
 | ERC-8021 tags | `app/src/lib/attribution.ts` |
 | ERC-8004 registration and agent card | `app/src/lib/erc8004.ts`, `app/src/lib/agentCard.ts` |
+| VIP door check with Self | `app/src/lib/door.ts` |
 | Fair Drop | `app/src/lib/drop.ts` |
 | Fairness report | `app/src/lib/report.ts` |
 | Send-to-pay for other wallets | `app/src/lib/sendpay.ts` |
@@ -182,7 +187,7 @@ Fan / AI agent ──(Self Agent ID signature + x402)──▶ kovenra.xyz/api  
 
 ## Verification and security
 
-- **Tests:** 28 unit tests in [`app/src/lib/kovenra.test.ts`](app/src/lib/kovenra.test.ts) cover the Self gate, per-human limits shared by two agents, mid-payment holds, capacity, underpayments, cNGN direct payments, single check-in, settlement through Textile, tag encoding, forged ticket codes, Fair Drop ranking, face-value resale, send-to-pay and the fairness report.
+- **Tests:** 32 unit tests in [`app/src/lib/kovenra.test.ts`](app/src/lib/kovenra.test.ts) cover the Self gate, per-human limits shared by two agents, mid-payment holds, capacity, underpayments, cNGN direct payments, single check-in, the VIP door check, settlement through Textile, tag encoding, forged ticket codes, Fair Drop ranking, face-value resale, send-to-pay and the fairness report.
 - **Mainnet checks:** every sale above was checked onchain: the conversion and payout exist and carry the tag. The Self proof was run against the live counter.
 - **Secrets:** the settlement key lives only in Vercel; agent keys are git-ignored; the organizer dashboard needs a per-event key (403 without it); ticket QR codes are HMAC-signed.
 - **Internal review:** [AUDIT.md](AUDIT.md) lists what we checked, what we fixed and what is still a known limit.

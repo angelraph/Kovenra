@@ -46,6 +46,7 @@ Code: `app/src/lib/settle.ts`, `app/src/lib/textile.ts`, `app/src/lib/attributio
 | Requirement | How Kovenra meets it |
 |---|---|
 | Self Agent ID decides who gets served, paid or limited | Verified-humans events: unsigned → 403, unverified → 403, verified → 402 quote, same human's second agent → 429. Live run in [docs/self-agent-id-proof.md](docs/self-agent-id-proof.md) |
+| Self also guards the door | VIP door check (live on Eleven Stars): after the ticket QR, the guest scans a fresh Self code with their own passport; entry only if the new nullifier matches the buyer's. A stolen phone or copied QR fails, and no name is shared. [`app/src/lib/door.ts`](app/src/lib/door.ts) |
 | Payments through x402 | A verified member (#226) paid over x402: [0x4626…0c57](https://celoscan.io/tx/0x4626477ac681dfb6ad64f73d6fdb767b32b2a250040bc0c5cd4092f2941d0c57). Celo's facilitator settles every sale to our PayTo, e.g. [0xa26f…c50f](https://celoscan.io/tx/0xa26f718142a0c1f9a5134cc5556365e4d2034a485c0fe47a6a5367826b55c50f) |
 | File and line of the check | [`app/src/lib/purchase.ts#L90`](app/src/lib/purchase.ts#L90), [`app/src/lib/selfgate.ts#L42`](app/src/lib/selfgate.ts#L42), [`app/src/lib/store.ts`](app/src/lib/store.ts) (`hold`) |
 | Public X post tagging @selfxyz and @Celo | https://x.com/RaphElevator/status/2126167520813990031 |

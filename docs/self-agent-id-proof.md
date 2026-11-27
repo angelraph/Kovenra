@@ -28,6 +28,16 @@ On 2026-11-27 a member of Eleven Stars VIPs (not on the Kovenra team) verified w
 
 The event's fairness report counts it as 1 ticket to 1 verified person: https://kovenra.xyz/e/eleven-stars-vip-summit-7d4add/fair
 
+## Self at the door too
+
+Eleven Stars VIP Summit has the VIP door check switched on. At the gate the organizer scans the ticket QR; the scanner then shows a fresh Self code. The guest scans it with their own Self app, which creates a one-time agent backed by their passport. Kovenra checks that agent's nullifier against the nullifier saved on the ticket at purchase:
+
+- same passport: checked in;
+- a different passport (someone holding the owner's phone or a copied QR): "Wrong person, do not let them in";
+- no valid proof: refused, ticket left unused.
+
+Kovenra never learns a name. Code: `app/src/lib/door.ts`; routes `/api/events/:slug/checkin` and `/api/events/:slug/door-confirm` in `app/src/lib/api.ts`. Tests in `app/src/lib/kovenra.test.ts` ("VIP door check").
+
 ## The agents
 - Kovenra's own Self Agent ID: #223, 0xBecc56A1dd6146feE6113695A94538AD323C0656
   (https://agent-api.self.xyz/api/agent/info/42220/223)
