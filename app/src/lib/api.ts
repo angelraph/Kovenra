@@ -12,6 +12,7 @@ import { chainPulse, liveStats } from "./stats";
 import { countsAsSeat, getStore, type EventRec, type TicketRec } from "./store";
 import { drawResult, ensureDraw, entryHash, phase as dropPhase } from "./drop";
 import { fairnessReport } from "./report";
+import { confirmAtDoor, needsDoorCheck } from "./door";
 import { checkSendOrder, createSendOrder } from "./sendpay";
 import { checkAdmin, hashKey, newAdminKey, newId, parseTicketCode, slugify, ticketCode } from "./tickets";
 
@@ -28,6 +29,7 @@ const CreateEvent = z.object({
   perPersonLimit: z.coerce.number().int().min(1).max(10).default(1),
   minAge: z.coerce.number().int().refine((n) => n === 0 || n === 18 || n === 21, "0, 18 or 21").default(0),
   humansOnly: z.boolean().default(true),
+  doorCheck: z.boolean().default(false),
   organizerName: z.string().trim().min(2).max(60),
   payoutAddress: z.string().refine((a) => isAddress(a), "not a wallet address"),
   mode: z.enum(["first-come", "fair-drop"]).default("first-come"),
@@ -51,6 +53,7 @@ export function publicEvent(e: EventRec, sold: number, entries?: number) {
     perPersonLimit: e.perPersonLimit,
     minAge: e.minAge,
     humansOnly: e.humansOnly,
+    doorCheck: Boolean(e.humansOnly && e.doorCheck),
     organizerName: e.organizerName,
     mode: e.mode ?? "first-come",
     drop: e.mode === "fair-drop" && e.drop
@@ -153,6 +156,7 @@ export function buildApi(defer: Defer) {
       perPersonLimit: drop ? 1 : d.perPersonLimit,
       minAge: d.minAge,
       humansOnly: d.humansOnly,
+      doorCheck: d.humansOnly && d.doorCheck,
       organizerName: d.organizerName,
       payoutAddress: getAddress(d.payoutAddress),
       adminKeyHash: hashKey(adminKey),
@@ -389,9 +393,50 @@ export function buildApi(defer: Defer) {
     if (!t || t.eventId !== e.id) return c.json({ result: "invalid", message: "Ticket is for a different event" }, 200);
     if (t.status === "resold") return c.json({ result: "invalid", message: "This ticket was resold. The QR no longer works." }, 200);
     if (t.status === "listed") return c.json({ result: "invalid", message: "This ticket was handed back for resale. Ask the holder to cancel the listing first." }, 200);
+    if (t.status === "used") return c.json({ result: "used", message: `Already used at ${t.checkedInAt ?? "an earlier scan"}` }, 200);
+    // VIP door check: the QR is valid, now the guest must prove with their own passport that they bought it.
+    if (needsDoorCheck(e, t)) return c.json({ result: "self_required", message: "Valid ticket. Now the guest scans the Self QR with their own Self app.", ticketId: id }, 200);
     const done = await store.checkIn(id, new Date().toISOString());
     if (!done) return c.json({ result: "used", message: `Already used at ${t.checkedInAt ?? "an earlier scan"}` }, 200);
     return c.json({ result: "ok", message: "Welcome in", ticketId: id }, 200);
+  });
+
+  // Second half of the VIP door check. Admin key (the organizer's scanner) plus a request signed by
+  // the one-time agent the guest just created by scanning their passport in Self at the gate.
+  app.post("/events/:slug/door-confirm", async (c) => {
+    const store = getStore();
+    const e = await store.getEventBySlug(c.req.param("slug"));
+    if (!e) return c.json({ error: "not_found" }, 404);
+    if (!checkAdmin(e, c.req.header("x-admin-key"))) return c.json({ error: "forbidden" }, 403);
+    const rawBody = await c.req.text();
+    let ticketId = "";
+    try {
+      ticketId = String((JSON.parse(rawBody) as { ticketId?: string }).ticketId ?? "");
+    } catch {
+      /* handled below */
+    }
+    if (!ticketId) return c.json({ result: "invalid", message: "No ticket given" }, 200);
+    const r = await confirmAtDoor({ store, verifier: getVerifier() }, e, ticketId, {
+      signature: c.req.header("x-self-agent-signature") ?? undefined,
+      timestamp: c.req.header("x-self-agent-timestamp") ?? undefined,
+      method: "POST",
+      url: c.req.url,
+      rawBody,
+    });
+    return c.json(r, 200);
+  });
+
+  // Organizer settings that can change after launch (today: the VIP door check).
+  app.post("/events/:slug/settings", async (c) => {
+    const store = getStore();
+    const e = await store.getEventBySlug(c.req.param("slug"));
+    if (!e) return c.json({ error: "not_found" }, 404);
+    if (!checkAdmin(e, c.req.header("x-admin-key"))) return c.json({ error: "forbidden" }, 403);
+    const { doorCheck } = (await c.req.json().catch(() => ({}))) as { doorCheck?: unknown };
+    if (typeof doorCheck !== "boolean") return c.json({ error: "invalid" }, 400);
+    if (doorCheck && !e.humansOnly) return c.json({ error: "invalid", message: "The door check needs the verified-humans rule." }, 400);
+    await store.updateEvent(e.id, { doorCheck });
+    return c.json({ doorCheck }, 200);
   });
 
   // Public proof: every sale with its on-chain transactions. No personal data.

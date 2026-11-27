@@ -6,7 +6,7 @@ import { adminKeyFor } from "@/lib/client/admin";
 import { celoscanTx, naira, short, usd } from "@/lib/format";
 
 interface Admin {
-  event: { title: string; slug: string; capacity: number; priceLabel: string; pageUrl: string; startsAt: string; mode?: string; drop?: { phase: string } | null };
+  event: { title: string; slug: string; capacity: number; priceLabel: string; pageUrl: string; startsAt: string; mode?: string; drop?: { phase: string } | null; humansOnly?: boolean; doorCheck?: boolean };
   payoutAddress: string;
   totals: { sold: number; checkedIn: number; ngnDeliveredLabel: string; pendingPayouts: number; blocked: number; blockedByReason: Record<string, number>; resales?: number; listed?: number; entries?: number | null };
   tickets: { id: string; createdAt: string; status: string; paidToken: string; paidAmount: string; paymentTx: string; settleStatus: string; payoutTx: string | null; ngnDelivered: string | null }[];
@@ -26,6 +26,18 @@ export default function Dashboard({ params }: { params: Promise<{ slug: string }
   const [data, setData] = useState<Admin | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [key, setKey] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function setDoorCheck(on: boolean) {
+    if (!key) return;
+    setSaving(true);
+    try {
+      await fetch(`/api/events/${slug}/settings`, { method: "POST", headers: { "content-type": "application/json", "x-admin-key": key }, body: JSON.stringify({ doorCheck: on }) });
+      await load(key);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const load = useCallback(async (k: string) => {
     const res = await fetch(`/api/events/${slug}/admin`, { headers: { "x-admin-key": k }, cache: "no-store" });
@@ -59,6 +71,14 @@ export default function Dashboard({ params }: { params: Promise<{ slug: string }
           <Link className="btn btn-ghost btn-sm" href={`/e/${slug}`}>Event page</Link>
         </div>
       </div>
+
+      {data.event.humansOnly && (
+        <label className="toggle card">
+          <input type="checkbox" checked={Boolean(data.event.doorCheck)} disabled={saving} onChange={(e) => setDoorCheck(e.target.checked)} />
+          <span><b>VIP door check</b> {data.event.doorCheck ? <span className="pill pill-good">On</span> : <span className="pill">Off</span>}<br />
+            <span className="small muted">When on, the scanner asks each guest to scan a Self code with their own passport after their ticket. Only the buyer gets in. No names are shared.</span></span>
+        </label>
+      )}
 
       <div className="grid grid-4">
         <div className="card"><div className="stat">{t.sold}<span className="faint small"> / {data.event.capacity}</span></div><div className="stat-label">Tickets sold</div></div>

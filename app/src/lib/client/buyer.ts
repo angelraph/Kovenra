@@ -174,3 +174,34 @@ export async function buyTicket(slug: string, buyer: Address, maxUsdt: bigint): 
   const body = await res.json().catch(() => ({}));
   return { ok: res.ok, status: res.status, body };
 }
+
+/**
+ * VIP door check, run on the organizer's scanner phone. Starts a Self session the guest scans with
+ * their own Self app. The one-time key stays in memory (never saved on the organizer's phone) and is
+ * only used to sign the door-confirm request, which proves the guest's passport matches the buyer's.
+ */
+export async function startDoorCheck() {
+  const session = await requestRegistration({ mode: "wallet-free", network: "mainnet", disclosures: {} });
+  const done = (async () => {
+    await session.waitForCompletion({ timeoutMs: 5 * 60_000 });
+    return session.exportKey();
+  })();
+  return { qr: session.scanUrl, deepLink: session.deepLink, done };
+}
+
+export async function confirmDoor(slug: string, adminKey: string, ticketId: string, guestKey: string) {
+  const agent = new SelfAgent({ privateKey: guestKey, network: "mainnet" });
+  // Wait until Celo's registry shows the guest's new proof (usually a few seconds).
+  for (let i = 0; i < 30; i++) {
+    const info = await agent.getInfo().catch(() => null);
+    if (info?.isVerified) break;
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+  const url = `${window.location.origin}/api/events/${slug}/door-confirm`;
+  const body = JSON.stringify({ ticketId });
+  const headers = new Headers(await agent.signRequest("POST", url, body));
+  headers.set("content-type", "application/json");
+  headers.set("x-admin-key", adminKey);
+  const res = await fetch(url, { method: "POST", headers, body });
+  return (await res.json().catch(() => ({ result: "invalid", message: "No answer from Kovenra. Try again." }))) as { result: string; message: string };
+}

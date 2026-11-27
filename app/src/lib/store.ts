@@ -23,6 +23,8 @@ export interface EventRec {
   /** "first-come" (default) or "fair-drop" (verified people enter, a Celo block hash draws the order). */
   mode?: "first-come" | "fair-drop";
   drop?: DropInfo;
+  /** VIP door check: at the gate the guest re-proves with Self and the passport must match the buyer's. Needs humansOnly. */
+  doorCheck?: boolean;
 }
 
 export interface DropInfo {

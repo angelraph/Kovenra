@@ -20,6 +20,7 @@ export default function NewEvent() {
   const [created, setCreated] = useState<Created | null>(null);
   const [humansOnly, setHumansOnly] = useState(true);
   const [adult, setAdult] = useState(false);
+  const [doorCheck, setDoorCheck] = useState(false);
   const [title, setTitle] = useState("");
   const [city, setCity] = useState("");
   const [venue, setVenue] = useState("");
@@ -62,6 +63,7 @@ export default function NewEvent() {
       perPersonLimit: fairDrop ? 1 : Number(perPerson),
       minAge: adult ? 18 : 0,
       humansOnly: fairDrop ? true : humansOnly,
+      doorCheck: (fairDrop || humansOnly) && doorCheck,
       mode: fairDrop ? "fair-drop" : "first-come",
       entryClosesAt: fairDrop ? `${closeDate}T${closeTime || "12:00"}:00+01:00` : undefined,
       claimMinutes: Number(claimMinutes),
@@ -222,6 +224,12 @@ export default function NewEvent() {
               <label className="toggle">
                 <input type="checkbox" checked={adult} onChange={(e) => setAdult(e.target.checked)} disabled={!humansOnly} />
                 <span><b style={{ color: "var(--text)" }}>18+ event</b><br /><span className="small muted">Buyers prove they&apos;re over 18 without showing their ID or date of birth.</span></span>
+              </label>
+            </div>
+            <div className="field">
+              <label className="toggle">
+                <input type="checkbox" checked={doorCheck && (humansOnly || fairDrop)} onChange={(e) => setDoorCheck(e.target.checked)} disabled={!humansOnly && !fairDrop} />
+                <span><b style={{ color: "var(--text)" }}>VIP door check</b><br /><span className="small muted">At the door the guest scans a Self code with their own passport. Only the person who bought the ticket gets in, so a stolen phone or a copied QR is useless. No names are shared.</span></span>
               </label>
             </div>
             {errors.length > 0 && <div className="notice notice-bad" style={{ marginTop: 16 }}>{errors.map((x) => <div key={x}>{x}</div>)}</div>}

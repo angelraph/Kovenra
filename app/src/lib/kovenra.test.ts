@@ -9,6 +9,7 @@ import { purchase, type PurchaseDeps, type PurchaseRequest } from "./purchase";
 import type { GateInput, GateResult, HumanVerifier } from "./selfgate";
 import { settleTicket, type Chain } from "./settle";
 import { MemoryStore, type EventRec } from "./store";
+import { confirmAtDoor, needsDoorCheck } from "./door";
 import type { FirmQuote } from "./textile";
 import { usdtForNaira } from "./textile";
 import { hashKey, parseTicketCode, ticketCode } from "./tickets";
@@ -207,6 +208,43 @@ describe("ticket counter", () => {
     const id = (r.body as { ticket: { id: string } }).ticket.id;
     expect(await store.checkIn(id, new Date().toISOString())).not.toBeNull();
     expect(await store.checkIn(id, new Date().toISOString())).toBeNull();
+  });
+
+  describe("VIP door check", () => {
+    const gate = (sig: string | undefined): GateInput => ({ signature: sig, timestamp: sig ? "1" : undefined, method: "POST", url: "https://kovenra.xyz/api/events/rooftop-jam/door-confirm", rawBody: "{}" });
+    async function ticketFor(agent: string) {
+      const r = await buy(agent);
+      return (r.body as { ticket: { id: string } }).ticket.id;
+    }
+
+    it("only runs on verified-humans events that switched it on", () => {
+      expect(needsDoorCheck(makeEvent({ doorCheck: true }), { nullifier: "777" })).toBe(true);
+      expect(needsDoorCheck(makeEvent(), { nullifier: "777" })).toBe(false);
+      expect(needsDoorCheck(makeEvent({ doorCheck: true, humansOnly: false }), { nullifier: "0" })).toBe(false);
+    });
+
+    it("lets the buyer in when a fresh proof from the same passport matches", async () => {
+      const id = await ticketFor("0xa1");
+      // 0xa2 is a different agent of the same person (same nullifier), like a one-time agent made at the gate.
+      const r = await confirmAtDoor({ store, verifier: new FakeVerifier() }, event, id, gate("0xa2"));
+      expect(r.result).toBe("ok");
+      expect((await store.getTicket(id))?.status).toBe("used");
+      const again = await confirmAtDoor({ store, verifier: new FakeVerifier() }, event, id, gate("0xa2"));
+      expect(again.result).toBe("used");
+    });
+
+    it("turns away someone else holding the buyer's ticket", async () => {
+      const id = await ticketFor("0xa1");
+      const r = await confirmAtDoor({ store, verifier: new FakeVerifier() }, event, id, gate("0xb1"));
+      expect(r.result).toBe("mismatch");
+      expect((await store.getTicket(id))?.status).toBe("valid");
+    });
+
+    it("refuses when there is no valid Self proof", async () => {
+      const id = await ticketFor("0xa1");
+      expect((await confirmAtDoor({ store, verifier: new FakeVerifier() }, event, id, gate(undefined))).result).toBe("self_failed");
+      expect((await confirmAtDoor({ store, verifier: new FakeVerifier() }, event, id, gate("0xbad"))).result).toBe("self_failed");
+    });
   });
 });
 
