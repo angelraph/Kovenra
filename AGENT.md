@@ -39,3 +39,9 @@ cd app
 npm run agent:register -- --name demo-1     # one passport scan in the Self app
 npm run demo:buyers -- --event <slug>       # 403 / 403 / 402 / 429
 ```
+
+## For an automated reviewer
+
+`GET https://kovenra.xyz/`, `/agent.json` (and the three `.well-known` aliases above), `/skill.md`, `/api/events` and `/api/events/{slug}` are public, unauthenticated, and return 200 for any caller, bot included — no headers, cookies or sign-in needed. If one of those ever answers with anything other than 200, it's a real problem; please open an issue.
+
+`POST /api/events/{slug}/buy` is different on purpose: it returns 403 to a caller with no Self Agent ID on a verified-humans event, and 403 again if that ID isn't itself verified. That refusal is the Self Agent ID check this project is built around (see [the rules agents meet](#the-rules-agents-meet) above), not a broken endpoint — a request that skips `x-self-agent-*` headers is expected to be turned away.

@@ -8,7 +8,8 @@ import type { PaymentGateway } from "./payments";
 import { purchase, type PurchaseDeps, type PurchaseRequest } from "./purchase";
 import type { GateInput, GateResult, HumanVerifier } from "./selfgate";
 import { settleTicket, type Chain } from "./settle";
-import { MemoryStore, type EventRec } from "./store";
+import { MemoryStore, setStoreForTests, type EventRec, type TicketRec } from "./store";
+import { buildApi } from "./api";
 import { confirmAtDoor, needsDoorCheck } from "./door";
 import { cleanHandle, readProfile } from "./agentbuy";
 import type { FirmQuote } from "./textile";
@@ -419,7 +420,89 @@ describe("face-value resale", () => {
     expect((call.args as [Address, bigint])[0]).toBe(SELLER);
     expect((call.args as [Address, bigint])[1]).toBe(BigInt(accepts[0].amount));
   });
+
+  it("stops one human's two agents from each claiming a different resale ticket when sold out", async () => {
+    // perPersonLimit 1, capacity 2, both seats listed for resale by two unrelated sellers.
+    const store = new MemoryStore();
+    const gateway = new FakeGateway();
+    const deps: PurchaseDeps = { store, verifier: new FakeVerifier(), gateway, rate: async () => RATE, settler: SETTLER };
+    const event = makeEvent({ capacity: 2 });
+    await store.createEvent(event);
+    const listing1: TicketRec = {
+      id: "tkt_L1", eventId: event.id, nullifier: "555", agentId: "1", buyer: "0xs1", paidToken: "USDT",
+      paidAmount: "1000000", paymentTx: "0xpayL1", status: "listed", createdAt: new Date().toISOString(), settleStatus: "paid",
+      listing: { seller: "0x5555555555555555555555555555555555555555", at: new Date(0).toISOString() },
+    };
+    const listing2: TicketRec = {
+      id: "tkt_L2", eventId: event.id, nullifier: "666", agentId: "1", buyer: "0xs2", paidToken: "USDT",
+      paidAmount: "1000000", paymentTx: "0xpayL2", status: "listed", createdAt: new Date().toISOString(), settleStatus: "paid",
+      listing: { seller: "0x6666666666666666666666666666666666666666", at: new Date(1).toISOString() },
+    };
+    await store.addTicket(listing1, "holdL1");
+    await store.addTicket(listing2, "holdL2");
+
+    // 0xa1 (nullifier 777) has claimed the first listing but hasn't paid for it yet.
+    const claimed = await store.claimListing(event.id, "holdForA1", Date.now(), "777", event.perPersonLimit);
+    expect(claimed?.id).toBe(listing1.id);
+
+    // 0xa1's second agent, 0xa2 (same human), tries to buy the other listing while that claim is live.
+    // claimListing refuses it (same human already has a live claim), so there's no listing left
+    // to even offer a price for.
+    const attempt = await purchase(event, req("0xa2"), deps);
+    expect(attempt.status).toBe(409);
+    expect(attempt.body.error).toBe("sold_out");
+    expect((await store.getTicket(listing2.id))?.status).toBe("listed"); // never claimed
+  });
 });
+
+describe("resale per-person limit at the HTTP layer", () => {
+  it("refuses to unlist a ticket back into existence over the owner's own limit elsewhere", async () => {
+    const store = new MemoryStore();
+    setStoreForTests(store);
+    const event = makeEvent({ perPersonLimit: 1 });
+    await store.createEvent(event);
+    const listed: TicketRec = {
+      id: "tkt_listed", eventId: event.id, nullifier: "777", agentId: "1", buyer: "0xa1", paidToken: "USDT",
+      paidAmount: "1000000", paymentTx: "0xpayA", status: "listed", createdAt: new Date().toISOString(), settleStatus: "paid",
+      listing: { seller: "0x9999999999999999999999999999999999999999", at: new Date().toISOString() },
+    };
+    await store.addTicket(listed, "holdA");
+    const other: TicketRec = {
+      id: "tkt_other", eventId: event.id, nullifier: "777", agentId: "1", buyer: "0xa2", paidToken: "USDT",
+      paidAmount: "1000000", paymentTx: "0xpayB", status: "valid", createdAt: new Date().toISOString(), settleStatus: "paid",
+    };
+    await store.addTicket(other, "holdB");
+
+    const app = buildApi(() => {});
+    const res = await app.request(`/api/tickets/${listed.id}/unlist`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code: ticketCode(listed.id) }),
+    });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("per_person_limit");
+    expect((await store.getTicket(listed.id))?.status).toBe("listed");
+  });
+
+  it("never hands the ticket's resale code to a caller who only has the ticket id", async () => {
+    const store = new MemoryStore();
+    setStoreForTests(store);
+    const event = makeEvent();
+    await store.createEvent(event);
+    const t: TicketRec = {
+      id: "tkt_public", eventId: event.id, nullifier: "777", agentId: "1", buyer: "0xa1", paidToken: "USDT",
+      paidAmount: "1000000", paymentTx: "0xpayC", status: "valid", createdAt: new Date().toISOString(), settleStatus: "paid",
+    };
+    await store.addTicket(t, "holdC");
+
+    const app = buildApi(() => {});
+    const res = await app.request(`/api/tickets/${t.id}`);
+    const body = await res.json();
+    expect(body.id).toBe(t.id);
+    expect(body.code).toBeUndefined();
+  });
+});
+
 describe("pay by sending (MiniPay Send button)", () => {
   const BUYER = getAddress("0x3333333333333333333333333333333333333333");
   let store: MemoryStore;

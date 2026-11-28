@@ -142,7 +142,10 @@ export async function purchase(event: EventRec, req: PurchaseRequest, deps: Purc
       return json(429, { error: "per_person_limit", message: limitMessage });
     }
     // Sold out: a ticket handed back by its owner can be bought at face value, never above.
-    listing = await store.claimListing(event.id, holdKey, now);
+    // Pass the per-person limit through: a listing a buyer already holds doesn't count toward
+    // their own limit (it's "listed", not "valid"), so without this a human's two agents could
+    // each race to claim a different listed ticket and both land over the per-person limit.
+    listing = await store.claimListing(event.id, holdKey, now, nullifier, event.perPersonLimit);
     if (!listing) return json(409, { error: "sold_out", message: "Sold out. Tickets handed back by their owners reappear here at face value." });
   }
 
@@ -191,8 +194,25 @@ export async function purchase(event: EventRec, req: PurchaseRequest, deps: Purc
     ngnDelivered: !listing && paidToken === "CNGN" ? paidReq.amount : undefined,
     resale: listing ? { fromTicket: listing.id, seller: listing.listing!.seller } : undefined,
   };
-  if (listing) await store.completeResale(listing.id, ticket, holdKey);
-  else await store.addTicket(ticket, holdKey);
+  try {
+    if (listing) await store.completeResale(listing.id, ticket, holdKey);
+    else await store.addTicket(ticket, holdKey);
+  } catch (e) {
+    // The payment already settled on-chain (settled.transaction) but the ticket could not be
+    // recorded — e.g. the listing was taken back while this payment was in flight. Keep a
+    // durable record of the paid-but-unticketed transaction instead of losing it to a 500.
+    await store.logRejection({
+      eventId: event.id,
+      reason: `paid_but_not_ticketed: ${(e as Error).message} tx=${settled.transaction}`,
+      agent: agentAddress,
+      at: new Date(now).toISOString(),
+    });
+    return json(409, {
+      error: "payment_not_applied",
+      message: "Your payment went through, but this ticket is no longer available. Contact the organizer for a refund.",
+      paymentTx: settled.transaction,
+    });
+  }
 
   return {
     status: 200,

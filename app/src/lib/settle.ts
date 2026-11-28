@@ -76,34 +76,40 @@ async function doSettle(ticket: TicketRec, deps: SettleDeps): Promise<TicketRec>
   const { store, chain } = deps;
   const quote = deps.quote ?? requestFirmQuote;
   const submit = deps.submit ?? submitSwap;
+  const now = Date.now();
 
   const fresh = (await store.getTicket(ticket.id)) ?? ticket;
 
   // Face-value resale: the buyer paid Kovenra's wallet; pass exactly that amount to the seller, same token.
   if (fresh.resale) {
-    if (fresh.settleStatus === "paid" || fresh.settleStatus === "converting") return fresh;
-    await store.updateTicket(fresh.id, { settleStatus: "converting", settleError: undefined });
+    if (fresh.settleStatus === "paid") return fresh;
+    // Atomically claim this settlement (pending/failed/stale-converting -> converting) so two
+    // overlapping settle attempts for the same ticket (the inline retry after a sale and the
+    // 5-minute cron, which may run in different serverless instances) can't both pay out.
+    const claimed = await store.claimSettlement(fresh.id, now);
+    if (!claimed) return fresh;
     try {
-      const token = fresh.paidToken === "CNGN" ? TOKENS.CNGN.address : TOKENS.USDT.address;
+      const token = claimed.paidToken === "CNGN" ? TOKENS.CNGN.address : TOKENS.USDT.address;
       const tx = await chain.send(
         token,
-        encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [fresh.resale.seller as Address, BigInt(fresh.paidAmount)] }),
+        encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [claimed.resale!.seller as Address, BigInt(claimed.paidAmount)] }),
       );
-      const done: Partial<TicketRec> = { settleStatus: "paid", payoutTx: tx, resale: { ...fresh.resale, sellerPaidTx: tx } };
-      await store.updateTicket(fresh.id, done);
-      return { ...fresh, ...done };
+      const done: Partial<TicketRec> = { settleStatus: "paid", payoutTx: tx, resale: { ...claimed.resale!, sellerPaidTx: tx } };
+      await store.updateTicket(claimed.id, done);
+      return { ...claimed, ...done };
     } catch (e) {
       const msg = (e as Error).message.slice(0, 300);
-      await store.updateTicket(fresh.id, { settleStatus: "failed", settleError: msg });
-      return { ...fresh, settleStatus: "failed", settleError: msg };
+      await store.updateTicket(claimed.id, { settleStatus: "failed", settleError: msg });
+      return { ...claimed, settleStatus: "failed", settleError: msg };
     }
   }
 
   if (fresh.paidToken === "CNGN") {
+    if (fresh.settleStatus === "direct") return fresh;
     await store.updateTicket(fresh.id, { settleStatus: "direct", ngnDelivered: fresh.paidAmount });
     return { ...fresh, settleStatus: "direct", ngnDelivered: fresh.paidAmount };
   }
-  if (fresh.settleStatus === "paid" || fresh.settleStatus === "converting") return fresh;
+  if (fresh.settleStatus === "paid") return fresh;
 
   const event = await store.getEvent(fresh.eventId);
   if (!event) throw new Error("event not found");
@@ -112,14 +118,15 @@ async function doSettle(ticket: TicketRec, deps: SettleDeps): Promise<TicketRec>
     return { ...fresh, settleStatus: "failed" };
   }
 
-  await store.updateTicket(fresh.id, { settleStatus: "converting", settleError: undefined });
+  const claimed = await store.claimSettlement(fresh.id, now);
+  if (!claimed) return fresh;
   try {
-    let swapTx = fresh.swapTx as Hex | undefined;
-    let delivered = fresh.ngnDelivered ? BigInt(fresh.ngnDelivered) : 0n;
+    let swapTx = claimed.swapTx as Hex | undefined;
+    let delivered = claimed.ngnDelivered ? BigInt(claimed.ngnDelivered) : 0n;
 
     if (!swapTx) {
       const q: FirmQuote = await quote(
-        { sellToken: TOKENS.USDT.address, buyToken: TOKENS.CNGN.address, sellAmount: BigInt(fresh.paidAmount), taker: chain.address },
+        { sellToken: TOKENS.USDT.address, buyToken: TOKENS.CNGN.address, sellAmount: BigInt(claimed.paidAmount), taker: chain.address },
         chain.signTyped,
       );
       const allowance = await chain.allowance(TOKENS.USDT.address, q.reactor);
@@ -133,7 +140,7 @@ async function doSettle(ticket: TicketRec, deps: SettleDeps): Promise<TicketRec>
       swapTx = await chain.send(q.swap.to, q.swap.data);
       await submit(q, swapTx);
       delivered = q.buyAmount;
-      await store.updateTicket(fresh.id, { swapTx, ngnDelivered: delivered.toString() });
+      await store.updateTicket(claimed.id, { swapTx, ngnDelivered: delivered.toString() });
     }
 
     const payoutTx = await chain.send(
@@ -141,18 +148,18 @@ async function doSettle(ticket: TicketRec, deps: SettleDeps): Promise<TicketRec>
       encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [event.payoutAddress as Address, delivered] }),
     );
     const done: Partial<TicketRec> = { settleStatus: "paid", payoutTx, swapTx, ngnDelivered: delivered.toString() };
-    await store.updateTicket(fresh.id, done);
-    return { ...fresh, ...done };
+    await store.updateTicket(claimed.id, done);
+    return { ...claimed, ...done };
   } catch (e) {
     const msg = (e as Error).message.slice(0, 300);
-    await store.updateTicket(fresh.id, { settleStatus: "failed", settleError: msg });
-    return { ...fresh, settleStatus: "failed", settleError: msg };
+    await store.updateTicket(claimed.id, { settleStatus: "failed", settleError: msg });
+    return { ...claimed, settleStatus: "failed", settleError: msg };
   }
 }
 
-/** Retry anything pending or failed (called by the cron route and after each sale). */
+/** Retry anything pending, failed, or stuck in "converting" from a crashed attempt (called by the cron route and after each sale). */
 export async function settlePending(deps: SettleDeps): Promise<TicketRec[]> {
   const out: TicketRec[] = [];
-  for (const t of await deps.store.pendingSettlements()) out.push(await settleTicket(t, deps));
+  for (const t of await deps.store.pendingSettlements(Date.now())) out.push(await settleTicket(t, deps));
   return out;
 }
