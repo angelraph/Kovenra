@@ -15,7 +15,7 @@ import { fairnessReport } from "./report";
 import { confirmAtDoor, needsDoorCheck } from "./door";
 import { checkOrganizer, cleanHandle, screenWallet } from "./agentbuy";
 import { checkSendOrder, createSendOrder } from "./sendpay";
-import { checkAdmin, hashKey, newAdminKey, newId, parseTicketCode, slugify, ticketCode } from "./tickets";
+import { checkAdmin, hashKey, newAdminKey, newId, parseTicketCode, slugify, timingSafeStringEqual } from "./tickets";
 
 export type Defer = (job: () => Promise<unknown>) => void;
 
@@ -104,6 +104,26 @@ export async function runAgentChecks(eventId: string, opts: { force?: boolean } 
   return out;
 }
 
+// Best-effort per-IP throttle on /buy. A seat hold costs the caller nothing to create (no auth,
+// no payment) until it's actually paid for, so without this, a script can spam fresh unpaid
+// holds on an open event and lock real buyers out for HOLD_MS at a time, repeatably. This is
+// per server instance, not a full fix across every instance a serverless deploy may run on, but
+// it raises the cost of casual abuse far above anything a real buyer would ever trigger.
+const BUY_WINDOW_MS = 60_000;
+const BUY_MAX_PER_WINDOW = 20;
+const buyAttempts = new Map<string, number[]>();
+function clientIp(c: { req: { header: (n: string) => string | undefined } }): string {
+  return c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || c.req.header("x-real-ip") || "unknown";
+}
+function buyRateLimited(key: string): boolean {
+  const now = Date.now();
+  const hits = (buyAttempts.get(key) ?? []).filter((t) => now - t < BUY_WINDOW_MS);
+  hits.push(now);
+  buyAttempts.set(key, hits);
+  if (buyAttempts.size > 5000) for (const [k, v] of buyAttempts) if (now - v[v.length - 1] > BUY_WINDOW_MS) buyAttempts.delete(k);
+  return hits.length > BUY_MAX_PER_WINDOW;
+}
+
 export function buildApi(defer: Defer) {
   const app = new Hono().basePath("/api");
 
@@ -140,7 +160,10 @@ export function buildApi(defer: Defer) {
     return c.json(await identityStatus());
   });
 
-  const ownerOnly = (auth: string | undefined) => Boolean(process.env.CRON_SECRET) && auth === `Bearer ${process.env.CRON_SECRET}`;
+  const ownerOnly = (auth: string | undefined) => {
+    const secret = process.env.CRON_SECRET;
+    return Boolean(secret) && Boolean(auth) && timingSafeStringEqual(auth!, `Bearer ${secret}`);
+  };
 
   app.post("/identity/register", async (c) => {
     if (!ownerOnly(c.req.header("authorization"))) return c.json({ error: "forbidden", message: "Wrong password." }, 403);
@@ -308,14 +331,33 @@ export function buildApi(defer: Defer) {
     if (!t || !code || parseTicketCode(code) !== t.id) return c.json({ error: "forbidden", message: "That ticket code doesn't match." }, 403);
     if (t.status !== "listed") return c.json({ error: "not_listed", message: "This ticket isn't listed." }, 409);
     if ((t.listing?.holdUntil ?? 0) > Date.now()) return c.json({ error: "in_checkout", message: "Someone is buying this ticket right now. Try again in a few minutes." }, 409);
+    // A listed ticket doesn't count toward its owner's per-person limit, so taking it back must
+    // recheck the limit here — otherwise list -> buy another -> unlist lets one person hold more
+    // than their share.
+    if (t.nullifier !== "0") {
+      const e = await store.getEvent(t.eventId);
+      if (e && (await store.humanCount(t.eventId, t.nullifier, Date.now())) >= e.perPersonLimit) {
+        return c.json(
+          {
+            error: "per_person_limit",
+            message: `You already hold your limit of ${e.perPersonLimit} ticket${e.perPersonLimit > 1 ? "s" : ""} for this event. Resell this one instead of taking it back.`,
+          },
+          409,
+        );
+      }
+    }
     await store.updateTicket(t.id, { status: "valid", listing: null as never });
     return c.json({ listed: false, message: "Your ticket is yours again." });
   });
 
   // The ticket counter. Agents call this with a Self Agent ID signature and pay over x402.
   app.post("/events/:slug/buy", async (c) => {
+    const slug = c.req.param("slug");
+    if (buyRateLimited(`${clientIp(c)}:${slug}`)) {
+      return c.json({ error: "rate_limited", message: "Too many attempts. Try again in a minute." }, 429);
+    }
     const store = getStore();
-    const found = await store.getEventBySlug(c.req.param("slug"));
+    const found = await store.getEventBySlug(slug);
     if (!found) return c.json({ error: "not_found" }, 404);
     const e = await ensureDraw(found, store).catch(() => found);
     const rawBody = await c.req.text();
@@ -353,6 +395,9 @@ export function buildApi(defer: Defer) {
     return c.json(r.body, r.status as 200);
   });
 
+  // The ticket id alone is not secret (it's in the shareable /t/:id link); the ticket "code" is
+  // the proof of ownership used for resale and must never be handed out here to just anyone who
+  // knows the id. The ticket's own page computes it server-side instead of calling this route.
   app.get("/tickets/:id", async (c) => {
     const store = getStore();
     const t = await store.getTicket(c.req.param("id"));
@@ -360,7 +405,6 @@ export function buildApi(defer: Defer) {
     const e = await store.getEvent(t.eventId);
     return c.json({
       id: t.id,
-      code: ticketCode(t.id),
       status: t.status,
       checkedInAt: t.checkedInAt ?? null,
       listed: t.status === "listed",
@@ -522,8 +566,7 @@ export function buildApi(defer: Defer) {
 
   // Retries conversions/payouts that didn't finish. Called by Vercel Cron.
   app.get("/settle/run", async (c) => {
-    const auth = c.req.header("authorization");
-    if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) return c.json({ error: "forbidden" }, 403);
+    if (!ownerOnly(c.req.header("authorization"))) return c.json({ error: "forbidden" }, 403);
     const store = getStore();
     // Run any fair-drop draws that are due, so the claim window starts on time even with no visitors.
     let draws = 0;

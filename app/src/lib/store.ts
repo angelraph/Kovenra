@@ -73,7 +73,9 @@ export interface TicketRec {
   ngnDelivered?: string;
   settleError?: string;
   /** Set while the ticket is listed for resale. */
-  listing?: { seller: string; at: string; holdKey?: string; holdUntil?: number };
+  listing?: { seller: string; at: string; holdKey?: string; holdUntil?: number; nullifier?: string };
+  /** Set whenever settleStatus moves to "converting", so a crashed settlement can be told apart from a live one and retried. */
+  settleStartedAt?: string;
   /** Set on a ticket bought through resale: the seller is paid face value from Kovenra's wallet. */
   resale?: { fromTicket: string; seller: string; sellerPaidTx?: string };
   resoldTo?: string;
@@ -108,7 +110,10 @@ export interface Store {
   updateTicket(id: string, patch: Partial<TicketRec>): Promise<void>;
   /** Atomically mark a valid ticket used. Returns the ticket if this call checked it in. */
   checkIn(id: string, at: string): Promise<TicketRec | null>;
-  pendingSettlements(): Promise<TicketRec[]>;
+  /** Tickets ready to (re)settle: pending, failed, or stuck in "converting" past SETTLE_STALE_MS. */
+  pendingSettlements(now: number): Promise<TicketRec[]>;
+  /** Atomically claim a ticket for settlement (pending/failed/stale-converting -> converting). Returns null if another process already holds a live claim, or it's already settled. */
+  claimSettlement(id: string, now: number): Promise<TicketRec | null>;
   logRejection(r: Rejection): Promise<void>;
   rejections(eventId: string): Promise<Rejection[]>;
   allTickets(limit?: number): Promise<TicketRec[]>;
@@ -116,11 +121,19 @@ export interface Store {
   /** Fair drop: one entry per human. Returns false if this human already entered. */
   addEntry(e: Entry): Promise<boolean>;
   listEntries(eventId: string): Promise<Entry[]>;
-  /** Resale: reserve the oldest listed ticket for this buyer's hold (or the one it already holds). */
-  claimListing(eventId: string, holdKey: string, now: number): Promise<TicketRec | null>;
+  /**
+   * Resale: reserve the oldest listed ticket for this buyer's hold (or the one it already
+   * holds). When nullifier/perPerson are given, the claim is also checked against that human's
+   * per-person limit (a listed ticket doesn't count toward it, so this must be re-checked here,
+   * atomically with the claim, or two of one human's agents could each claim a different listing).
+   */
+  claimListing(eventId: string, holdKey: string, now: number, nullifier?: string, perPerson?: number): Promise<TicketRec | null>;
   /** Resale: retire the old ticket and write the buyer's new one, atomically. */
   completeResale(oldId: string, t: TicketRec, holdKey: string): Promise<void>;
 }
+
+/** How long a settlement may sit in "converting" before it's treated as crashed and retried. */
+export const SETTLE_STALE_MS = 10 * 60_000;
 
 /** Seats count every ticket except ones replaced through resale. */
 export const countsAsSeat = (t: TicketRec) => t.status !== "resold";
@@ -173,15 +186,23 @@ export class MemoryStore implements Store {
   async listEntries(eventId: string) {
     return this.d.entries.filter((e) => e.eventId === eventId);
   }
-  async claimListing(eventId: string, holdKey: string, now: number) {
+  async claimListing(eventId: string, holdKey: string, now: number, nullifier?: string, perPerson?: number) {
     return this.lock(() => {
       const listed = this.d.tickets
         .filter((t) => t.eventId === eventId && t.status === "listed" && t.listing)
         .sort((a, b) => a.listing!.at.localeCompare(b.listing!.at));
       const mine = listed.find((t) => t.listing!.holdKey === holdKey && (t.listing!.holdUntil ?? 0) > now);
-      const pick = mine ?? listed.find((t) => !t.listing!.holdUntil || t.listing!.holdUntil <= now);
+      if (mine) return { ...mine };
+      if (nullifier && nullifier !== "0" && perPerson != null) {
+        const already =
+          this.seats(eventId).filter((t) => t.nullifier === nullifier && t.status !== "listed").length +
+          this.liveHolds(eventId, now).filter((h) => h.nullifier === nullifier).length +
+          listed.filter((t) => t.listing!.nullifier === nullifier && (t.listing!.holdUntil ?? 0) > now).length;
+        if (already >= perPerson) return null;
+      }
+      const pick = listed.find((t) => !t.listing!.holdUntil || t.listing!.holdUntil <= now);
       if (!pick) return null;
-      pick.listing = { ...pick.listing!, holdKey, holdUntil: now + HOLD_MS };
+      pick.listing = { ...pick.listing!, holdKey, holdUntil: now + HOLD_MS, nullifier };
       this.save();
       return { ...pick };
     });
@@ -305,8 +326,26 @@ export class MemoryStore implements Store {
       return { ...t };
     });
   }
-  async pendingSettlements() {
-    return this.d.tickets.filter((t) => t.settleStatus === "pending" || t.settleStatus === "failed");
+  async pendingSettlements(now: number) {
+    return this.d.tickets.filter(
+      (t) =>
+        t.settleStatus === "pending" ||
+        t.settleStatus === "failed" ||
+        (t.settleStatus === "converting" && (!t.settleStartedAt || now - new Date(t.settleStartedAt).getTime() > SETTLE_STALE_MS)),
+    );
+  }
+  async claimSettlement(id: string, now: number) {
+    return this.lock(() => {
+      const t = this.d.tickets.find((x) => x.id === id);
+      if (!t) return null;
+      const stale = t.settleStatus === "converting" && (!t.settleStartedAt || now - new Date(t.settleStartedAt).getTime() > SETTLE_STALE_MS);
+      if (t.settleStatus !== "pending" && t.settleStatus !== "failed" && !stale) return null;
+      t.settleStatus = "converting";
+      t.settleStartedAt = new Date(now).toISOString();
+      t.settleError = undefined;
+      this.save();
+      return { ...t };
+    });
   }
   async logRejection(r: Rejection) {
     await this.lock(() => {
@@ -365,7 +404,7 @@ export class PgStore implements Store {
     const r = await s`select data from entries where event_id = ${eventId}`;
     return r.map((x) => x.data as Entry);
   }
-  async claimListing(eventId: string, holdKey: string, now: number) {
+  async claimListing(eventId: string, holdKey: string, now: number, nullifier?: string, perPerson?: number) {
     const s = await this.q();
     return s.begin(async (tx) => {
       await tx`select pg_advisory_xact_lock(hashtext(${"resale:" + eventId}))`;
@@ -373,9 +412,17 @@ export class PgStore implements Store {
         order by data->'listing'->>'at' asc`;
       const listed = r.map((x) => x.data as TicketRec);
       const mine = listed.find((t) => t.listing?.holdKey === holdKey && (t.listing?.holdUntil ?? 0) > now);
-      const pick = mine ?? listed.find((t) => !t.listing?.holdUntil || t.listing.holdUntil <= now);
+      if (mine) return mine;
+      if (nullifier && nullifier !== "0" && perPerson != null) {
+        const already = await tx`select
+          (select count(*) from tickets where event_id = ${eventId} and nullifier = ${nullifier} and data->>'status' not in ('resold','listed')) +
+          (select count(*) from holds where event_id = ${eventId} and nullifier = ${nullifier}) as n`;
+        const claimedListings = listed.filter((t) => t.listing?.nullifier === nullifier && (t.listing?.holdUntil ?? 0) > now).length;
+        if (Number(already[0].n) + claimedListings >= perPerson) return null;
+      }
+      const pick = listed.find((t) => !t.listing?.holdUntil || t.listing.holdUntil <= now);
       if (!pick) return null;
-      const listing = { ...pick.listing!, holdKey, holdUntil: now + HOLD_MS };
+      const listing = { ...pick.listing!, holdKey, holdUntil: now + HOLD_MS, nullifier };
       await tx`update tickets set data = data || ${tx.json({ listing } as never)} where id = ${pick.id}`;
       return { ...pick, listing };
     }) as Promise<TicketRec | null>;
@@ -490,10 +537,27 @@ export class PgStore implements Store {
       where id = ${id} and data->>'status' = 'valid' returning data`;
     return (r[0]?.data as TicketRec) ?? null;
   }
-  async pendingSettlements() {
+  async pendingSettlements(now: number) {
     const s = await this.q();
-    const r = await s`select data from tickets where settle_status in ('pending','failed') order by created_at limit 50`;
+    const staleBefore = new Date(now - SETTLE_STALE_MS).toISOString();
+    const r = await s`select data from tickets where
+      settle_status in ('pending','failed')
+      or (settle_status = 'converting' and (data->>'settleStartedAt' is null or data->>'settleStartedAt' < ${staleBefore}))
+      order by created_at limit 50`;
     return r.map((x) => x.data as TicketRec);
+  }
+  async claimSettlement(id: string, now: number) {
+    const s = await this.q();
+    const staleBefore = new Date(now - SETTLE_STALE_MS).toISOString();
+    const patch = { settleStatus: "converting" as const, settleStartedAt: new Date(now).toISOString(), settleError: undefined };
+    const r = await s`update tickets set data = data || ${s.json(patch as never)}, settle_status = 'converting'
+      where id = ${id}
+        and (
+          data->>'settleStatus' in ('pending','failed')
+          or (data->>'settleStatus' = 'converting' and (data->>'settleStartedAt' is null or data->>'settleStartedAt' < ${staleBefore}))
+        )
+      returning data`;
+    return (r[0]?.data as TicketRec) ?? null;
   }
   async logRejection(r: Rejection) {
     const s = await this.q();

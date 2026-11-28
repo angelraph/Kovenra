@@ -40,9 +40,18 @@ function payingFetch(base: Fetcher = fetch): Fetcher {
     const celo = reqs.filter((r) => r.network === "eip155:42220");
     return celo.find((r) => r.asset.toLowerCase() === USDT.toLowerCase()) ?? celo.find((r) => r.asset.toLowerCase() === USDC.toLowerCase()) ?? celo[0] ?? reqs[0];
   });
-  registerExactEvmScheme(client, { signer: account });
+  // Scope the signer to Celo only: with no `networks` option this would register for every EVM
+  // chain ("eip155:*"), and the fallback selector above (`celo[0] ?? reqs[0]`) would then be able
+  // to pick (and this wallet able to sign) a 402 offer on a different chain entirely.
+  registerExactEvmScheme(client, { signer: account, networks: ["eip155:42220"] });
   client.setSpendControls({
-    maxAmountPerPayment: false,
+    // A top-level USD cap, not `false`: with it disabled, a requirement in a *default* asset
+    // (e.g. USDC on Base/Ethereum, which @x402/evm recognizes out of the box) that isn't one of
+    // the two explicit Celo entries below resolves to an *uncapped* spend cap, not a rejected
+    // one — the per-call limit here is the only thing standing between this wallet and an
+    // unbounded payment. The network restriction above should already keep that from ever being
+    // selectable; this is the second, independent layer in case it somehow isn't.
+    maxAmountPerPayment: "$0.02",
     allowedAssets: [
       { network: "eip155:42220", asset: USDT, maxAmountPerPayment: MAX_PER_CALL.toString() },
       { network: "eip155:42220", asset: USDC, maxAmountPerPayment: MAX_PER_CALL.toString() },

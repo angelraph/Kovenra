@@ -26,9 +26,19 @@ export function ticketCode(ticketId: string): string {
 }
 
 export function parseTicketCode(code: string): string | null {
-  const m = /^kv1\.(tkt_[A-Za-z0-9_-]+)\.([A-Za-z0-9_-]{16})$/.exec(code.trim());
+  const trimmed = code.trim();
+  const m = /^kv1\.(tkt_[A-Za-z0-9_-]+)\.([A-Za-z0-9_-]{16})$/.exec(trimmed);
   if (!m) return null;
-  return ticketCode(m[1]) === code.trim() ? m[1] : null;
+  const expected = Buffer.from(ticketCode(m[1]));
+  const actual = Buffer.from(trimmed);
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual) ? m[1] : null;
+}
+
+/** Constant-time comparison for secrets read from a request header. */
+export function timingSafeStringEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  return bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB);
 }
 
 export function slugify(title: string): string {
